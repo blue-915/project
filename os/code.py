@@ -97,7 +97,12 @@ def category_learn_start_page():
         return
 
     filtered_data = st.session_state.filtered_data
-    current_index = st.session_state.get('current_index', 0)  # 인덱스 값 기본값 설정
+    
+    if "current_index" not in st.session_state:
+        st.session_state.current_index = 0  # 기본값 설정
+
+    # 현재 단어 가져오기
+    current_index = st.session_state.current_index
     current_word = filtered_data.iloc[current_index % len(filtered_data)]
 
     if "Word" not in current_word:
@@ -119,10 +124,10 @@ def category_learn_start_page():
             st.session_state.unknown_words.append(current_word["Word"])
             st.session_state.records.append({"Word": current_word["Word"], "Result": "Incorrect"})
         
-        # 다음 단어 버튼
-        if st.button("다음 단어로"):
-            st.session_state.current_index += 1
-            st.experimental_rerun()
+    # 다음 단어 버튼
+    if st.button("다음 단어로"):
+        st.session_state.current_index += 1
+        st.experimental_rerun()
             
 
     # 페이지 이동 버튼
