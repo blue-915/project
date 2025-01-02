@@ -55,6 +55,10 @@ def home_page(data):
 # 학습하기 페이지 (사지선다형)
 def learn_page():
     st.title("학습하기")
+    
+    # marked_words가 없으면 빈 리스트로 초기화
+    if "marked_words" not in st.session_state:
+        st.session_state.marked_words = []
 
     # 필터링된 데이터 가져오기
     if "filtered_data" not in st.session_state or st.session_state.filtered_data.empty:
