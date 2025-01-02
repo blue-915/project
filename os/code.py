@@ -47,10 +47,20 @@ def home_page():
         })
     st.write("### 데이터 미리 보기")
     st.dataframe(st.session_state.data)
-    if st.button("학습 하기", on_click=lambda: go_to_page("C_learn")) :
-        if uploaded_file is None:
+                
+    # 버튼
+    buttons = [
+        ("학습하기", "C_Learn"),
+        ("복습하기", "S_Learn"),
+    ]
+
+    # 버튼 클릭 시 동작
+    for label, page in buttons:
+        if st.button(label):
+            go_to_page(page) 
+            if uploaded_file is None:
                 st.warning("파일을 업로드 하지 않았습니다. 기본 단어로 학습을 시작합니다.")
-                go_to_page("C_learn")
+                go_to_page(page)   
 
 # 분류별 학습 페이지
 #홈페이지
