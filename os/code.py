@@ -97,9 +97,6 @@ def category_learn_start_page():
         return
 
     filtered_data = st.session_state.filtered_data
-    
-    if "current_index" not in st.session_state:
-        st.session_state.current_index = 0  # 기본값 설정
 
     # 현재 단어 가져오기
     current_index = st.session_state.current_index
@@ -130,9 +127,6 @@ def category_learn_start_page():
             st.session_state.current_index = 0  # 초기화
         st.session_state.current_index += 1  # 인덱스 증가
         st.experimental_rerun()  # 페이지 새로고침
-    
-
-
 
             
 
