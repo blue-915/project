@@ -126,14 +126,13 @@ def category_learn_start_page():
         
     # 다음 단어 버튼
     if st.button("다음 단어로"):
-        st.session_state.current_index += 1
-        st.experimental_rerun()
-    # 다음 단어 버튼
-    if st.button("다음 단어로"):
         if "current_index" not in st.session_state:
             st.session_state.current_index = 0  # 초기화
         st.session_state.current_index += 1  # 인덱스 증가
         st.experimental_rerun()  # 페이지 새로고침
+    
+
+
 
             
 
