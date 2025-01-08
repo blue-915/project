@@ -22,19 +22,6 @@ def get_sequential_word(filtered_data):
 
     return current_word, correct_answer, options
 
-def get_random_word(filtered_data):
-    """랜덤으로 단어와 정답을 반환하는 함수"""
-    random_word = filtered_data.sample(1).iloc[0]  # 랜덤으로 단어 하나 선택
-    correct_answer = random_word["Meaning"]
-    
-    # 랜덤으로 섞은 답을 선택지로 제공
-    options = filtered_data["Meaning"].sample(4).tolist()
-    if correct_answer not in options:
-        options[0] = correct_answer  # 정답이 선택지에 포함되도록 함
-    random.shuffle(options)
-    
-    return random_word, correct_answer, options
-
 def check_answer(user_input, correct_answer, filtered_data):
     """사용자의 입력과 정답을 비교하고 결과를 처리하는 함수"""
     if user_input == correct_answer:
@@ -46,16 +33,24 @@ def check_answer(user_input, correct_answer, filtered_data):
         st.session_state.unknown_words.append(filtered_data.iloc[st.session_state.current_index]["Word"])
         st.session_state.records.append({"Word": filtered_data.iloc[st.session_state.current_index]["Word"], "Result": "Incorrect"})
 
-    # "다음 단어로" 버튼을 눌렀을 때 새로운 단어를 가져오도록 처리
-    if st.button("다음 단어로"):
-        st.session_state.current_index += 1  # 인덱스 증가
-        if st.session_state.current_index >= len(filtered_data):  # 데이터의 끝에 도달하면 다시 처음으로
-            st.session_state.current_index = 0
-        new_current_word, new_correct_answer, new_options = get_sequential_word(filtered_data)
-        st.session_state.current_word = new_current_word
-        st.session_state.correct_answer = new_correct_answer
-        st.session_state.options = new_options
-        st.experimental_rerun()  # 페이지 새로 고침
+def move_to_next_word(filtered_data):
+    """다음 단어로 이동하는 함수 (단어 인덱스 갱신 및 종료 메시지 표시)"""
+    # 인덱스 증가
+    st.session_state.current_index += 1
+    if st.session_state.current_index >= len(filtered_data):  # 데이터의 끝에 도달하면 처음으로
+        st.session_state.current_index = 0
+        st.warning("데이터의 끝에 도달했습니다. 다시 처음으로 돌아갑니다.")  # 끝에 도달했을 때 경고 메시지 표시
+
+
+def update_word_and_options(filtered_data):
+    """단어와 보기 선택지를 갱신하는 함수"""
+    current_word, correct_answer, options = get_sequential_word(filtered_data)
+    st.session_state.correct_answer = correct_answer
+    st.session_state.options = options
+    st.session_state.current_word = current_word  # 추가: 새로 갱신된 단어 저장
+
+
+
         
 
 def save_incorrect_answers_to_drive(filtered_data):

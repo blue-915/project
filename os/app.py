@@ -3,30 +3,47 @@ import pandas as pd
 import random
 import time
 
-from utils import get_sequential_word, get_random_word, check_answer, save_incorrect_answers_to_drive, save_marked_words_to_drive, mark_word
+from utils import (
+    get_sequential_word,
+    check_answer,
+    move_to_next_word,
+    update_word_and_options,
+    save_incorrect_answers_to_drive,
+    save_marked_words_to_drive,
+    mark_word,
+)
+
+# 세션 상태 초기화
+if "page" not in st.session_state:
+    st.session_state.page = "Home"
+if "marked_words" not in st.session_state:
+    st.session_state.marked_words = []
+if "records" not in st.session_state:
+    st.session_state.records = []
+if "current_index" not in st.session_state:
+    st.session_state.current_index = 0
+if "known_words" not in st.session_state:
+    st.session_state.known_words = []
+if "unknown_words" not in st.session_state:  
+    st.session_state.unknown_words = []
+if "filtered_data" not in st.session_state:
+    st.session_state.filtered_data = pd.DataFrame()
 
 
 @st.cache_data
 def load_data(file_url):
-    
-    
     return pd.read_excel(file_url)
 
 # GitHub에서 파일 URL
 file_url = 'https://raw.githubusercontent.com/blue-915/project/a478d554ddf9ff9b522ef24432c5b8b3d2147de1/os/%EB%85%B8%EB%9E%AD%EC%9D%B4%20%EC%A0%84%EB%A9%B4%EA%B0%9C%EC%A0%95%ED%8C%90.xlsx'
 data = load_data(file_url)
 
-
-# 초기 세션 상태 설정
-if "page" not in st.session_state:
-    st.session_state.page = "Home"  # 초기 페이지는 "Home"
-
 # 페이지 이동 함수
 def go_to_page(page_name):
-    st.session_state.page = page_name   
+    st.session_state.page = page_name
 
 # 페이지별 내용
-#홈페이지
+# 홈 페이지
 def home_page(data):
     st.title("단어 암기 프로그램")
     
@@ -48,176 +65,57 @@ def home_page(data):
         return
 
     st.session_state.filtered_data = filtered_data
-    st.button("학습하기", on_click=lambda: go_to_page("Learn"))
-    st.button("복습하기", on_click=lambda: go_to_page("S_Learn"))
+    st.button("학습모드", on_click=lambda: go_to_page("Learn"))
+    st.button("복습모드", on_click=lambda: go_to_page("S_Learn"))
     st.button("체크리스트", on_click=lambda: go_to_page("Mark"))
 
-# 학습하기 페이지 (사지선다형)
 def learn_page():
     st.title("학습하기")
-    
-    # marked_words가 없으면 빈 리스트로 초기화
-    if "marked_words" not in st.session_state:
-        st.session_state.marked_words = []
-
-    # 필터링된 데이터 가져오기
-    if "filtered_data" not in st.session_state or st.session_state.filtered_data.empty:
-        st.error("필터링된 데이터가 없습니다. 홈 화면에서 분류를 선택하세요.")
-        return
-
     filtered_data = st.session_state.filtered_data
-
-    # 처음에 순차적으로 단어를 선택하여 세션 상태에 저장
-    if "current_word" not in st.session_state:
-        current_word, correct_answer, options = get_sequential_word(filtered_data)
-        st.session_state.current_word = current_word
-        st.session_state.correct_answer = correct_answer
-        st.session_state.options = options
-
-    # 현재 단어와 선택지 표시
-    current_word = st.session_state.current_word
-    correct_answer = st.session_state.correct_answer
-    options = st.session_state.options
-
-    st.write(f"단어: **{current_word['Word']}**")
-
-    # 정답 선택
-    selected_option = st.radio("뜻을 선택하세요:", options)
-
-    # 단어 마크 버튼
-    is_marked = current_word["Word"] in st.session_state.marked_words
-    mark_button_text = "마크 취소" if is_marked else "이 단어를 마크하기"
-    
-    if st.button(mark_button_text):
-        marked = mark_word(current_word["Word"])  # 단어 마크 처리
-        st.experimental_rerun()  # 페이지 새로 고침
-
-    # 정답 확인 버튼
-    if st.button("정답 확인"):
-        check_answer(selected_option, correct_answer, filtered_data)
-
-    # 오답을 구글 드라이브에 저장
-    if st.button("오답 저장하기"):
-        save_incorrect_answers_to_drive(filtered_data)
-
-    # 마크된 단어들을 구글 드라이브에 저장
-    if st.button("마크된 단어 저장하기"):
-        save_marked_words_to_drive(filtered_data)
-
-    # 학습 기록 업데이트
-    st.write("### 학습 기록")
-    st.write(st.session_state.records)
-
-    # 버튼 UI
-    st.button("랜덤 학습하기", on_click=lambda: go_to_page("R_learn"))
-    st.button("홈으로 이동", on_click=lambda: go_to_page("Home"))
-
-# 랜덤 학습 페이지
-def random_learn_page():
-    st.title("랜덤 학습")
-    
-    if "filtered_data" not in st.session_state or st.session_state.filtered_data.empty:
-        st.error("데이터가 없습니다. 홈 화면에서 분류를 선택하세요.")
-        st.button("홈으로 이동", on_click=lambda: go_to_page("Home"))
+    if filtered_data.empty:
+        st.error("필터링된 데이터가 없습니다.")
         return
 
-    filtered_data = st.session_state.filtered_data
-    
-    # 랜덤 단어와 선택지 가져오기
-    random_word, correct_answer, options = get_random_word(filtered_data)
-    st.write(f"단어: **{random_word['Word']}**")
-
-    # 정답 선택
-    selected_option = st.radio("뜻을 선택하세요:", options)
-
-    # 단어 마크 버튼
-    is_marked = random_word["Word"] in st.session_state.marked_words
-    mark_button_text = "마크 취소" if is_marked else "이 단어를 마크하기"
-    
-    if st.button(mark_button_text):
-        marked = mark_word(random_word["Word"])  # 단어 마크 처리
-        st.experimental_rerun()  # 페이지 새로 고침
-
-    # 정답 확인 버튼
-    if st.button("정답 확인"):
-        check_answer(selected_option, correct_answer, filtered_data)
-
-    # 오답을 구글 드라이브에 저장
-    if st.button("오답 저장하기"):
-        save_incorrect_answers_to_drive(filtered_data)
-
-    # 마크된 단어들을 구글 드라이브에 저장
-    if st.button("마크된 단어 저장하기"):
-        save_marked_words_to_drive(filtered_data)
-
-    # 학습 기록 업데이트
-    st.write("### 학습 기록")
-    st.write(st.session_state.records)
-
-    # 버튼 UI
-    st.button("다른 단어 학습하기", on_click=st.experimental_rerun)
-    st.button("홈으로 이동", on_click=lambda: go_to_page("Home"))
-    
-
-def review_page():
-    st.title("오답 복습")
-
-    # 오답 데이터를 구글 드라이브에서 불러오기
-    incorrect_df = load_incorrect_words_from_drive()
-
-    if incorrect_df.empty:
-        st.write("현재 복습할 오답 단어가 없습니다.")
-        return
-
-    # 현재 복습할 단어 가져오기
-    if "current_index" not in st.session_state:
-        st.session_state.current_index = 0  # 첫 번째 단어부터 시작
-
+    # 현재 단어와 선택지 로드
     current_index = st.session_state.current_index
-    current_word, correct_answer, options = get_review_word(incorrect_df, current_index)
+    current_word = filtered_data.iloc[current_index]
 
-    # 단어와 선택지 출력
+    # 보기 초기화
+    if "options" not in st.session_state or st.session_state.options is None:
+        update_word_and_options(filtered_data)  # 단어와 선택지 초기화
+        st.session_state.correct_answer = st.session_state.correct_answer
+        st.session_state.options = st.session_state.options
+
     st.write(f"단어: **{current_word['Word']}**")
-    
-    # 마크된 단어인지 확인
-    is_marked = current_word["Word"] in st.session_state.marked_words
-    mark_button_text = "마크 취소" if is_marked else "마크하기"
-    
-    # 마크 버튼
-    if st.button(mark_button_text):
-        mark_word(current_word["Word"])  # 단어 마크
-        st.experimental_rerun()  # 버튼 클릭 후 페이지 새로고침
 
-    # 정답 선택
-    selected_option = st.radio("정답을 선택하세요:", options)
+    # 보기 선택
+    selected_option = st.radio("뜻을 선택하세요:", st.session_state.options, key="options_radio")
 
     # 정답 확인 버튼
-    if st.button("정답 확인"):
-        check_answer_for_review(selected_option, correct_answer, incorrect_df, current_word)
+    if st.button("정답 확인", key="check_answer"):
+        check_answer(selected_option, st.session_state.correct_answer, filtered_data)
+        st.session_state.show_next_button = True  # 다음 단어로 버튼 표시 플래그 설정
+
+    # '다음 단어로' 버튼
+    if st.session_state.get("show_next_button", False):
+        if st.button("다음 단어로", key="next_word"):
+            move_to_next_word(filtered_data)  # 인덱스만 갱신
+            update_word_and_options(filtered_data)  # 단어와 보기 선택지 갱신
+            st.session_state.show_next_button = False  # 다음 단어 버튼 숨기기
+
+    # 단어 마크
+    is_marked = current_word["Word"] in st.session_state.marked_words
+    if st.button("이 단어를 마크하기" if not is_marked else "마크 취소", key="mark_word"):
+        mark_word(current_word["Word"])
+
+
 
     # 학습 기록 업데이트
     st.write("### 학습 기록")
     st.write(st.session_state.records)
 
-    # 마크된 단어 목록
-    st.write("### 마크된 단어 목록")
-    st.write(st.session_state.marked_words)
-
-    # 버튼 UI
-    st.button("다음 단어로", on_click=next_word)
     st.button("홈으로 이동", on_click=lambda: go_to_page("Home"))
 
-    # 마크된 단어를 구글 드라이브에 저장
-    if st.button("마크된 단어 저장"):
-        save_marked_words_to_drive()  # 사용자가 마크된 단어를 저장하도록 처리
-
-
-def next_word():
-    # 현재 단어의 인덱스 증가
-    st.session_state.current_index += 1
-    if st.session_state.current_index >= len(st.session_state.filtered_data):
-        st.session_state.current_index = 0  # 마지막 단어 후 첫 번째 단어로 돌아가기
-    st.experimental_rerun()  # 페이지 새로 고침
 
 
 
@@ -253,13 +151,10 @@ def review_checklist_page():
 
 # 현재 페이지에 따라 다른 화면 표시
 if st.session_state.page == "Home":
-    home_page(data)  # data 인자 추가
+    home_page(data)
 elif st.session_state.page == "Learn":
     learn_page()
-elif st.session_state.page == "R_Learn":
-    random_learn_page()
 elif st.session_state.page == "S_Learn":
     review_page()
 elif st.session_state.page == "Mark":
     review_checklist_page()
-
