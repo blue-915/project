@@ -1,8 +1,16 @@
-import random
+import os
+import json
+
 import streamlit as st
 import pandas as pd
+
+import random
+
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive
+from google.cloud import secretmanager
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 
 def get_sequential_word(filtered_data):
     """순차적으로 단어와 정답을 반환하는 함수"""
@@ -50,8 +58,102 @@ def update_word_and_options(filtered_data):
     st.session_state.current_word = current_word  # 추가: 새로 갱신된 단어 저장
 
 
+from google.cloud import secretmanager
+import os
+import json
 
-        
+def get_credentials_from_secret_manager():
+    # Secret Manager 클라이언트 생성
+    client = secretmanager.SecretManagerServiceClient()
+
+    # Secret의 이름과 버전 (이 부분은 본인 프로젝트에 맞게 수정)
+    secret_name = "projects/silent-album/secrets/project/versions/latest"
+
+    # Secret 읽기
+    response = client.access_secret_version(request={"name": secret_name})
+    secret_data = response.payload.data.decode("UTF-8")
+
+    # 비밀 데이터를 JSON 형식으로 변환
+    credentials_json = json.loads(secret_data)
+
+    # JSON 데이터를 임시 파일로 저장
+    credentials_path = "/tmp/credentials.json"
+    with open(credentials_path, "w") as f:
+        json.dump(credentials_json, f)
+
+    # 환경 변수 설정
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+
+    print("GOOGLE_APPLICATION_CREDENTIALS:", os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"))
+
+    return credentials_path
+
+
+
+
+def find_file_in_drive(file_name):
+    """구글 드라이브에서 특정 파일을 검색하는 함수"""
+    credentials_path = get_credentials_from_secret_manager()
+    from google.oauth2.service_account import Credentials
+    credentials = Credentials.from_service_account_file(credentials_path)
+    drive_service = build("drive", "v3", credentials=credentials)
+
+    # 파일 검색
+    results = drive_service.files().list(q=f"name = '{file_name}'", fields="files(id, name)").execute()
+    files = results.get("files", [])
+
+    if not files:
+        st.error(f"{file_name} 파일이 구글 드라이브에 없습니다.")
+        return None  # 파일이 없으면 None 반환
+
+    return files[0]["id"]  # 첫 번째 파일의 ID 반환
+
+def download_file_from_drive(file_id):
+    """구글 드라이브에서 파일을 다운로드하고 데이터프레임으로 변환하는 함수"""
+    credentials_path = get_credentials_from_secret_manager()
+    from google.oauth2.service_account import Credentials
+    credentials = Credentials.from_service_account_file(credentials_path)
+    drive_service = build("drive", "v3", credentials=credentials)
+
+    # 파일 다운로드
+    request = drive_service.files().get_media(fileId=file_id)
+    file_data = request.execute()
+
+    # CSV 데이터를 데이터프레임으로 변환
+    from io import StringIO
+    csv_str = file_data.decode("utf-8")
+    df = pd.read_csv(StringIO(csv_str))
+
+    return df
+
+def load_incorrect_words_from_drive():
+    """구글 드라이브에서 오답 단어를 불러오는 함수"""
+    file_id = find_file_in_drive("incorrect_words.csv")
+    if file_id is None:
+        return pd.DataFrame()  # 파일이 없으면 빈 데이터프레임 반환
+
+    # 파일을 다운로드하여 데이터프레임으로 변환
+    incorrect_df = download_file_from_drive(file_id)
+    return incorrect_df
+
+def save_to_drive(dataframe, filename):
+    """구글 드라이브에 데이터프레임을 저장하는 함수"""
+    # DataFrame을 CSV 파일로 저장
+    filepath = f"/tmp/{filename}"
+    dataframe.to_csv(filepath, index=False)
+
+    # Google Drive API 클라이언트 생성
+    credentials_path = get_credentials_from_secret_manager()
+    from google.oauth2.service_account import Credentials
+    credentials = Credentials.from_service_account_file(credentials_path)
+    drive_service = build("drive", "v3", credentials=credentials)
+
+    # 파일 업로드
+    file_metadata = {"name": filename}
+    media = MediaFileUpload(filepath, mimetype="text/csv")
+    file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+
+    return f"{filename}이 구글 드라이브에 저장되었습니다."
 
 def save_incorrect_answers_to_drive(filtered_data):
     """오답을 구글 드라이브에 저장하는 함수"""
@@ -78,6 +180,13 @@ def save_incorrect_answers_to_drive(filtered_data):
     file_drive.Upload()
     return "오답이 구글 드라이브에 저장되었습니다."
 
+def save_marked_words_to_drive(filtered_data):
+    """단어 마크한 단어들을 구글 드라이브에 저장하는 함수"""
+    marked_words = st.session_state.marked_words  # 세션 상태에서 마크된 단어를 직접 가져옴
+    marked_df = filtered_data[filtered_data["Word"].isin(marked_words)]
+    
+    return save_to_drive(marked_df, 'marked_words.csv')
+
 def mark_word(word):
     """단어를 마크하거나 마크를 취소하는 함수"""
     # 마크된 단어 목록을 세션 상태에 저장
@@ -92,30 +201,6 @@ def mark_word(word):
         st.session_state.marked_words.append(word)  # 마크 처리
         return True  # 마크된 상태
 
-def save_to_drive(dataframe, filename):
-    """구글 드라이브에 데이터프레임을 저장하는 함수"""
-    gauth = GoogleAuth()
-    gauth.LocalWebserverAuth()  # 인증을 위한 웹 서버 생성
-    drive = GoogleDrive(gauth)
 
-    # DataFrame을 CSV로 저장
-    csv_data = dataframe.to_csv(index=False)
 
-    # 구글 드라이브에 업로드
-    file_drive = drive.CreateFile({'title': filename})
-    file_drive.Upload()
-    return f"{filename}이 구글 드라이브에 저장되었습니다."
 
-def save_incorrect_answers_to_drive(filtered_data):
-    """오답을 구글 드라이브에 저장하는 함수"""
-    incorrect_words = [record["Word"] for record in st.session_state.records if record["Result"] == "Incorrect"]
-    incorrect_df = filtered_data[filtered_data["Word"].isin(incorrect_words)]
-    
-    return save_to_drive(incorrect_df, 'incorrect_words.csv')
-
-def save_marked_words_to_drive(filtered_data):
-    """단어 마크한 단어들을 구글 드라이브에 저장하는 함수"""
-    marked_words = st.session_state.marked_words  # 세션 상태에서 마크된 단어를 직접 가져옴
-    marked_df = filtered_data[filtered_data["Word"].isin(marked_words)]
-    
-    return save_to_drive(marked_df, 'marked_words.csv')
