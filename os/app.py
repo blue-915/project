@@ -8,14 +8,18 @@ from utils import (
     check_answer,
     move_to_next_word,
     update_word_and_options,
-    get_credentials_from_secret_manager,
     find_file_in_drive,
-    download_file_from_drive,
+    process_and_save_incorrect_answers,
+    save_incorrect_answers_to_drive,
     load_incorrect_words_from_drive,
     save_to_drive,
-    save_incorrect_answers_to_drive,
     save_marked_words_to_drive,
-    mark_word
+    mark_word,
+    get_current_word,
+    get_options, 
+    load_marked_words_from_drive,
+    check_answer_and_update,
+    move_to_next_word_and_update,
 )
 
 
@@ -108,15 +112,20 @@ def learn_page():
         st.session_state.options = st.session_state.options
 
     st.write(f"단어: **{current_word['Word']}**")
-
+    
     # 보기 선택
     selected_option = st.radio("뜻을 선택하세요:", st.session_state.options, key="options_radio")
 
+
     # 정답 확인 버튼
     if st.button("정답 확인", key="check_answer"):
+        # 정답 확인
         check_answer(selected_option, st.session_state.correct_answer, filtered_data)
-        st.session_state.show_next_button = True  # 다음 단어로 버튼 표시 플래그 설정
-
+        # 오답 처리 및 저장 함수 호출
+        process_and_save_incorrect_answers(selected_option, st.session_state.correct_answer, current_word)
+        # 다음 단어로 버튼 활성화
+        st.session_state.show_next_button = True
+         
     # '다음 단어로' 버튼
     if st.session_state.get("show_next_button", False):
         if st.button("다음 단어로", key="next_word"):
@@ -139,12 +148,19 @@ def learn_page():
 
 def review_page():
     st.title("오답 복습")
+    if "filtered_data" not in st.session_state or st.session_state.filtered_data.empty:
+            st.error("필터링된 데이터가 없습니다. 홈 화면으로 돌아가세요.")
+            st.button("홈으로 이동", on_click=lambda: go_to_page("Home"))
+            return
+
+    filtered_data = st.session_state.filtered_data
 
     # 오답 데이터를 구글 드라이브에서 불러오기
     incorrect_df = load_incorrect_words_from_drive()
 
     if incorrect_df.empty:
         st.write("현재 복습할 오답 단어가 없습니다.")
+        st.button("홈으로 이동", on_click=lambda: go_to_page("Home"))
         return
 
     # 현재 복습할 단어 가져오기
@@ -152,29 +168,35 @@ def review_page():
         st.session_state.current_index = 0  # 첫 번째 단어부터 시작
 
     current_index = st.session_state.current_index
-    current_word, correct_answer, options = get_review_word(incorrect_df, current_index)
+    current_word, correct_answer = get_current_word(incorrect_df, current_index)
 
-    # 보기 초기화
-    if "options" not in st.session_state or st.session_state.options is None:
-        update_word_and_options(filtered_data)  # 단어와 선택지 초기화
-        st.session_state.correct_answer = st.session_state.correct_answer
-        st.session_state.options = st.session_state.options
+    # 현재 단어가 None일 경우 처리
+    if current_word is None:
+        st.write("현재 복습할 단어가 없습니다.")
+        return
 
+    # 보기 선택지 생성
+    options = get_options(filtered_data, correct_answer)
+
+    # 보기 출력
     st.write(f"단어: **{current_word['Word']}**")
-    # 보기 선택
-    selected_option = st.radio("뜻을 선택하세요:", st.session_state.options, key="options_radio")
+    selected_option = st.radio("뜻을 선택하세요:", options, key="options_radio")
 
-    # 정답 확인 버튼
-    if st.button("정답 확인", key="check_answer"):
-        check_answer_for_review(selected_option, correct_answer, incorrect_df, current_word)
-        st.session_state.show_next_button = True  # 다음 단어로 버튼 표시 플래그 설정
+    # 정답 확인 버튼 동작
+    if st.button("정답 확인"):
+        incorrect_df = check_answer_and_update(
+            selected_option, correct_answer, current_word, incorrect_df
+        )
+    
+    # '다음 단어로' 버튼         
+    # 키에 current_index를 포함해 고유 키 생성
+    if st.button("다음 단어로", key=f"next_word_{st.session_state.current_index}"):
+        success = move_to_next_word_and_update(incorrect_df, filtered_data)
+        if success:
+            st.session_state.show_next_button = False
+            st.experimental_rerun()
 
-    # '다음 단어로' 버튼
-    if st.session_state.get("show_next_button", False):
-        if st.button("다음 단어로", key="next_word"):
-            move_to_next_word(filtered_data)  # 인덱스만 갱신
-            update_word_and_options(filtered_data)  # 단어와 보기 선택지 갱신
-            st.session_state.show_next_button = False  # 다음 단어 버튼 숨기기
+
 
     # 학습 기록 업데이트
     st.write("### 학습 기록")
@@ -182,33 +204,42 @@ def review_page():
 
     # 버튼 UI
     st.button("홈으로 이동", on_click=lambda: go_to_page("Home"))
+  
 
-
+        
 def review_checklist_page():
     st.title("복습용 체크리스트")
 
-    # 마크된 단어가 없으면 안내 메시지 표시
-    if "marked_words" not in st.session_state or not st.session_state.marked_words:
+    # 마크된 단어 불러오기
+    marked_df = load_marked_words_from_drive()
+
+    if marked_df.empty:
         st.write("마크된 단어가 없습니다.")
         return
 
-    st.write("### 복습용 마크된 단어 목록")
-    
-    # 체크리스트 형식으로 마크된 단어 표시
-    selected_words = []
-    for word in st.session_state.marked_words:
-        if st.checkbox(f"{word}", key=word):  # 단어별로 체크박스 생성
-            selected_words.append(word)  # 체크된 단어를 리스트에 추가
-    
-    # 선택된 단어들이 있을 경우 선택한 단어 목록 출력
-    if selected_words:
-        st.write("선택한 단어들:")
-        for word in selected_words:
-            st.write(f"- {word}")
-    
-    # 체크된 단어가 없으면 안내 메시지 표시
-    if not selected_words:
-        st.write("체크박스를 선택해주세요.")
+    # Day 선택
+    days = marked_df["Day"].unique()
+    selected_day = st.selectbox("Day 선택:", days)
+
+    # 선택한 Day에 해당하는 단어 필터링
+    filtered_data = marked_df[marked_df["Day"] == selected_day]
+
+    if filtered_data.empty:
+        st.write(f"{selected_day}에 해당하는 마크된 단어가 없습니다.")
+        return
+
+    # 체크리스트 생성
+    for idx, row in filtered_data.iterrows():
+        col1, col2, col3 = st.columns([1, 4, 1])
+        with col1:
+            checked = st.checkbox("", key=f"check_{idx}")
+        with col2:
+            st.write(f"{row['Word']} - {row['Meaning']}")
+        with col3:
+            if st.button("삭제", key=f"delete_{idx}"):
+                filtered_data = filtered_data.drop(idx)
+                save_to_drive(filtered_data, "marked_words.csv")
+                st.experimental_rerun()
 
     # 홈 페이지로 이동 버튼
     st.button("홈 페이지로 이동", on_click=lambda: go_to_page("Home"))

@@ -1,185 +1,368 @@
 import os
-import json
-
-import streamlit as st
-import pandas as pd
-
 import random
-
-from pydrive2.auth import GoogleAuth
-from pydrive2.drive import GoogleDrive
+import pandas as pd
+from datetime import datetime
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+import streamlit as st
 
+def initialize_session():
+    """세션 상태 초기화"""
+    default_states = {
+        "page": "Home",
+        "marked_words": [],
+        "records": [],
+        "current_index": 0,
+        "known_words": [],
+        "unknown_words": [],
+        "filtered_data": pd.DataFrame(),
+    }
+    for key, value in default_states.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+@st.cache_data
+def load_data(file_url):
+    return pd.read_excel(file_url)
+
+def handle_page_navigation(page_name):
+    """페이지 이동 처리"""
+    st.session_state.page = page_name
+    
+# 경로를 직접 설정
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/mnt/c/Users/User/Downloads/study/service_account.json"
+
+def get_credentials_from_secret_manager():
+    """구글 서비스 계정 인증을 위한 함수"""
+    credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    if not credentials_path:
+        raise ValueError("GOOGLE_APPLICATION_CREDENTIALS 환경변수가 설정되지 않았습니다.")
+    from google.oauth2.service_account import Credentials
+    return Credentials.from_service_account_file(credentials_path)
+
+def load_google_credentials():
+    """구글 서비스 계정 인증 로드"""
+    credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    if not credentials_path:
+        st.error("Google Credentials 경로가 설정되지 않았습니다.")
+        return None
+    credentials = Credentials.from_service_account_file(credentials_path)
+    st.write("Google Credentials Loaded Successfully")
+    return credentials
+
+def save_to_drive(dataframe, filename):
+    """구글 드라이브에 데이터프레임 저장"""
+    filepath = f"/tmp/{filename}"
+    dataframe.to_csv(filepath, index=False)
+
+    credentials = load_google_credentials()
+    if not credentials:
+        return
+
+    drive_service = build("drive", "v3", credentials=credentials)
+    file_id = find_file_in_drive(filename, drive_service)
+    if file_id:
+        drive_service.files().delete(fileId=file_id).execute()
+
+    file_metadata = {"name": filename}
+    media = MediaFileUpload(filepath, mimetype="text/csv")
+    drive_service.files().create(body=file_metadata, media_body=media).execute()
+
+def find_file_in_drive(filename, drive_service):
+    """구글 드라이브에서 파일 검색"""
+    results = drive_service.files().list(q=f"name = '{filename}'", fields="files(id, name)").execute()
+    files = results.get("files", [])
+    return files[0]["id"] if files else None
 
 def get_sequential_word(filtered_data):
     """순차적으로 단어와 정답을 반환하는 함수"""
-    # 세션 상태에 저장된 current_index를 확인
-    if "current_index" not in st.session_state:
-        st.session_state.current_index = 0  # 처음에는 첫 번째 단어부터 시작
-    
-    # 데이터에서 현재 인덱스에 해당하는 단어를 선택
-    current_word = filtered_data.iloc[st.session_state.current_index]
-    correct_answer = current_word["Meaning"]
-    
-    # 랜덤으로 섞은 답을 선택지로 제공
-    options = filtered_data["Meaning"].sample(4).tolist()
+    current_index = st.session_state.current_index
+    current_word = filtered_data.iloc[current_index]
+    correct_answer = current_word['Meaning']
+
+    options = filtered_data['Meaning'].sample(4).tolist()
     if correct_answer not in options:
-        options[0] = correct_answer  # 정답이 선택지에 포함되도록 함
+        options[0] = correct_answer
     random.shuffle(options)
 
     return current_word, correct_answer, options
 
 def check_answer(user_input, correct_answer, filtered_data):
-    """사용자의 입력과 정답을 비교하고 결과를 처리하는 함수"""
+    current_word = filtered_data.iloc[st.session_state.current_index]
+
     if user_input == correct_answer:
         st.success("정답입니다!")
-        st.session_state.known_words.append(filtered_data.iloc[st.session_state.current_index]["Word"])
-        st.session_state.records.append({"Word": filtered_data.iloc[st.session_state.current_index]["Word"], "Result": "Correct"})
+        st.session_state.records.append({
+            "Word": current_word["Word"],
+            "Result": "Correct"
+        })
     else:
         st.error(f"오답입니다! 정답은: {correct_answer}")
-        st.session_state.unknown_words.append(filtered_data.iloc[st.session_state.current_index]["Word"])
-        st.session_state.records.append({"Word": filtered_data.iloc[st.session_state.current_index]["Word"], "Result": "Incorrect"})
+        st.session_state.records.append({
+            "Word": current_word["Word"],
+            "Result": "Incorrect"
+        })
+
 
 def move_to_next_word(filtered_data):
-    """다음 단어로 이동하는 함수 (단어 인덱스 갱신 및 종료 메시지 표시)"""
-    # 인덱스 증가
+    """다음 단어로 이동하는 함수"""
     st.session_state.current_index += 1
-    if st.session_state.current_index >= len(filtered_data):  # 데이터의 끝에 도달하면 처음으로
+    if st.session_state.current_index >= len(filtered_data):
         st.session_state.current_index = 0
-        st.warning("데이터의 끝에 도달했습니다. 다시 처음으로 돌아갑니다.")  # 끝에 도달했을 때 경고 메시지 표시
-
+        st.warning("모든 단어를 학습했습니다. 다시 처음부터 시작합니다.")
 
 def update_word_and_options(filtered_data):
     """단어와 보기 선택지를 갱신하는 함수"""
     current_word, correct_answer, options = get_sequential_word(filtered_data)
+    st.session_state.current_word = current_word
     st.session_state.correct_answer = correct_answer
     st.session_state.options = options
-    st.session_state.current_word = current_word  # 추가: 새로 갱신된 단어 저장
 
+from datetime import datetime
+import pandas as pd
+
+def process_and_save_incorrect_answers(selected_option, correct_answer, current_word):
+    """
+    오답 단어를 처리하고 구글 드라이브에 저장하는 함수.
+    
+    Parameters:
+        selected_option (str): 사용자가 선택한 답안.
+        correct_answer (str): 현재 문제의 정답.
+        current_word (dict): 현재 문제의 단어 정보.
+    """
+    # 정답 여부 확인
+    if selected_option != correct_answer:
+        # 오답 데이터 생성
+        incorrect_entry = {
+            "Day": current_word.get("Day", "Unspecified"),  # Day 정보
+            "Word": current_word["Word"],                  # 단어
+            "Meaning": current_word.get("Meaning", "No meaning provided"),  # 뜻
+            "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # 저장된 날짜
+        }
+
+        # 세션 상태에 오답 데이터 누적
+        if "unknown_words" not in st.session_state:
+            st.session_state.unknown_words = []  # 초기화
+        st.session_state.unknown_words.append(incorrect_entry)
+
+        # 누적된 오답 데이터를 데이터프레임으로 변환
+        incorrect_df = pd.DataFrame(st.session_state.unknown_words)
+
+        # 구글 드라이브에 저장
+        save_incorrect_answers_to_drive(incorrect_df)
+
+        # 디버깅용 출력
+        st.write("현재 저장된 오답 데이터프레임:")
+        st.write(incorrect_df)
+
+    else:
+        st.write("정답입니다! 저장된 오답 데이터는 변경되지 않았습니다.")
+
+
+from datetime import datetime
+
+def save_incorrect_answers_to_drive(filtered_data):
+    """오답 데이터를 구글 드라이브에 저장"""
+    # 디버깅용 출력
+    st.write("현재 filtered_data:")
+    st.write(filtered_data)
+    st.write("현재 records:")
+    st.write(st.session_state.records)
+
+    # 'Incorrect' 상태인 단어만 필터링
+    incorrect_words = [record['Word'] for record in st.session_state.records if record['Result'] == 'Incorrect']
+    st.write(f"오답 단어 목록: {incorrect_words}")  # 디버깅용 출력
+    
+    # 오답 단어를 포함하는 데이터프레임 필터링
+    incorrect_df = filtered_data[filtered_data["Word"].isin(incorrect_words)]
+
+    if incorrect_df.empty:
+        st.warning("오답 데이터가 없습니다. 저장을 건너뜁니다.")
+        return
+
+    # 데이터프레임 컬럼 구성 (Day, Word, Meaning, Date)
+    incorrect_df = incorrect_df.copy()  # 경고 방지
+    incorrect_df["Day"] = incorrect_df.get("Day", "Unspecified")  # Day 컬럼 추가 (없을 경우 기본값)
+    incorrect_df["Meaning"] = incorrect_df.get("Meaning", "No meaning provided")  # Meaning 컬럼 추가
+    incorrect_df["Date"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Date 추가
+
+    # 디버깅 출력
+    st.write("최종 저장 데이터프레임:")
+    st.write(incorrect_df)
+
+    # 저장
+    save_to_drive(incorrect_df, "incorrect_words.csv")
+
+
+
+def load_incorrect_words_from_drive():
+    """구글 드라이브에서 오답 데이터를 불러오기"""
+    credentials = load_google_credentials()
+    if not credentials:
+        return pd.DataFrame()
+    drive_service = build("drive", "v3", credentials=credentials)
+    file_id = find_file_in_drive('incorrect_words.csv', drive_service)
+    if not file_id:
+        return pd.DataFrame()
+
+    request = drive_service.files().get_media(fileId=file_id)
+    file_data = request.execute()
+    from io import StringIO
+    return pd.read_csv(StringIO(file_data.decode('utf-8')))
+
+def get_current_word(incorrect_df, current_index):
+    """
+    현재 단어와 정답 반환.
+
+    Parameters:
+        incorrect_df (DataFrame): 복습할 오답 단어가 포함된 데이터프레임.
+        current_index (int): 현재 복습할 단어의 인덱스.
+
+    Returns:
+        tuple: (current_word, correct_answer)
+            - current_word (Series): 현재 단어의 데이터.
+            - correct_answer (str): 현재 단어의 정답(뜻).
+    """
+    if incorrect_df.empty or current_index >= len(incorrect_df):
+        return None, None
+    current_word = incorrect_df.iloc[current_index]
+    correct_answer = current_word["Meaning"]
+    return current_word, correct_answer
+
+
+def get_options(filtered_data, correct_answer):
+    """
+    보기 선택지 생성.
+
+    Parameters:
+        filtered_data (DataFrame): 학습 페이지 데이터.
+        correct_answer (str): 현재 정답.
+
+    Returns:
+        list: 보기 선택지 (정답 포함).
+    """
+    if filtered_data.empty:
+        return [correct_answer]  # 데이터가 없으면 정답만 반환
+
+    # 학습 페이지의 데이터프레임에서 무작위로 3개의 선택지 추출
+    options = filtered_data["Meaning"].dropna().sample(3, replace=False).tolist()
+
+    # 정답 추가 (중복 방지)
+    if correct_answer not in options:
+        options.append(correct_answer)
+
+    # 선택지 셔플링
+    random.shuffle(options)
+    return options
 
 import os
 
-# 경로를 직접 설정
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/mnt/c/Users/User/Downloads/study/service_account.json"
+def check_answer_and_update(selected_option, correct_answer, current_word, incorrect_df):
+    """
+    정답 확인 버튼 동작 및 데이터 갱신 함수.
+    
+    Parameters:
+        selected_option (str): 사용자가 선택한 답안.
+        correct_answer (str): 현재 정답.
+        current_word (Series): 현재 단어 데이터.
+        incorrect_df (DataFrame): 오답 데이터프레임.
 
-# 환경변수에서 GOOGLE_APPLICATION_CREDENTIALS 경로 가져오기
-credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    Returns:
+        DataFrame: 갱신된 incorrect_df.
+    """
+    if selected_option == correct_answer:
+        st.success("정답입니다!")
 
-if credentials_path:
-    print(f"GOOGLE_APPLICATION_CREDENTIALS 환경변수: {credentials_path}")
-else:
-    print("GOOGLE_APPLICATION_CREDENTIALS 환경변수가 설정되지 않았습니다.")
+        # 학습 기록에 추가
+        st.session_state.records.append({
+            "Word": current_word["Word"],
+            "Result": "Correct"
+        })
 
-def get_credentials_from_secret_manager():
-    """구글 서비스 계정 인증을 위한 함수"""
-    from google.oauth2.service_account import Credentials
-    credentials = Credentials.from_service_account_file(credentials_path)
-    return credentials
+        # incorrect_words.csv에서 해당 단어 삭제
+        incorrect_df = incorrect_df[incorrect_df["Word"] != current_word["Word"]]
 
-def find_file_in_drive(file_name):
-    """구글 드라이브에서 특정 파일을 검색하는 함수"""
+        # 디렉토리가 없으면 생성
+        save_dir = "data"
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
+        # CSV 파일 업데이트
+        incorrect_df.to_csv(f"{save_dir}/incorrect_words.csv", index=False)
+
+    else:
+        st.error(f"오답입니다! 정답은 {correct_answer}입니다.")
+        st.session_state.records.append({
+            "Word": current_word["Word"],
+            "Result": "Incorrect"
+        })
+
+    return incorrect_df
+
+
+def move_to_next_word_and_update(incorrect_df, filtered_data):
+    """
+    현재 복습 단어의 인덱스를 갱신하고, 단어와 선택지를 업데이트하는 함수.
+
+    Parameters:
+        incorrect_df (DataFrame): 복습할 오답 단어 데이터프레임.
+        filtered_data (DataFrame): 전체 학습 데이터프레임.
+
+    Returns:
+        bool: 다음 단어가 있는 경우 True, 없는 경우 False.
+    """
+    # 현재 인덱스 갱신
+    if "current_index" in st.session_state:
+        st.session_state.current_index += 1
+    else:
+        st.session_state.current_index = 0
+
+    current_index = st.session_state.current_index
+
+    # 현재 인덱스가 데이터프레임 길이를 초과하면 복습 종료
+    if current_index >= len(incorrect_df):
+        st.error("더 이상 복습할 단어가 없습니다.")
+        return False
+
+    # 현재 단어 정보 갱신
+    current_word = incorrect_df.iloc[current_index]
+    st.session_state.current_word = current_word["Word"]
+
+    # 선택지 갱신
+    st.session_state.options = get_options(filtered_data, current_word["Meaning"])
+    return True
+
+
+
+def load_marked_words_from_drive():
+    """구글 드라이브에서 마크된 단어를 불러오는 함수"""
     credentials = get_credentials_from_secret_manager()
     drive_service = build("drive", "v3", credentials=credentials)
-
-    # 파일 검색
-    results = drive_service.files().list(q=f"name = '{file_name}'", fields="files(id, name)").execute()
-    files = results.get("files", [])
-
-    if not files:
-        print(f"{file_name} 파일이 구글 드라이브에 없습니다.")
-        return None  # 파일이 없으면 None 반환
-
-    return files[0]["id"]  # 첫 번째 파일의 ID 반환
-
-def download_file_from_drive(file_id):
-    """구글 드라이브에서 파일을 다운로드하고 데이터프레임으로 변환하는 함수"""
-    credentials = get_credentials_from_secret_manager()
-    drive_service = build("drive", "v3", credentials=credentials)
+    
+    file_id = find_file_in_drive("marked_words.csv", drive_service)
+    if not file_id:
+        return pd.DataFrame()  # 파일이 없으면 빈 데이터프레임 반환
 
     # 파일 다운로드
     request = drive_service.files().get_media(fileId=file_id)
     file_data = request.execute()
 
-    # CSV 데이터를 데이터프레임으로 변환
     from io import StringIO
-    csv_str = file_data.decode("utf-8")
-    df = pd.read_csv(StringIO(csv_str))
+    return pd.read_csv(StringIO(file_data.decode("utf-8")))
 
-    return df
-
-def load_incorrect_words_from_drive():
-    """구글 드라이브에서 오답 단어를 불러오는 함수"""
-    file_id = find_file_in_drive("incorrect_words.csv")
-    if file_id is None:
-        return pd.DataFrame()  # 파일이 없으면 빈 데이터프레임 반환
-
-    # 파일을 다운로드하여 데이터프레임으로 변환
-    incorrect_df = download_file_from_drive(file_id)
-    return incorrect_df
-
-def save_to_drive(dataframe, filename):
-    """구글 드라이브에 데이터프레임을 저장하는 함수"""
-    # DataFrame을 CSV 파일로 저장
-    filepath = f"/tmp/{filename}"
-    dataframe.to_csv(filepath, index=False)
-
-    # Google Drive API 클라이언트 생성
-    credentials = get_credentials_from_secret_manager()
-    drive_service = build("drive", "v3", credentials=credentials)
-
-    # 파일 업로드
-    file_metadata = {"name": filename}
-    media = MediaFileUpload(filepath, mimetype="text/csv")
-    file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
-
-    return f"{filename}이 구글 드라이브에 저장되었습니다."
-
-import pandas as pd
-from datetime import datetime
-
-def save_incorrect_answers_to_drive(filtered_data):
-    """오답을 구글 드라이브에 저장하는 함수"""
-    # 오답 데이터 추출
-    incorrect_words = []
-    for record in st.session_state.records:
-        if record["Result"] == "Incorrect":
-            if record["Word"] not in incorrect_words:  # 중복 방지
-                incorrect_words.append(record["Word"])
-
-    # 오답 데이터프레임 생성 (단어 철자와 뜻 포함)
-    incorrect_df = filtered_data[filtered_data["Word"].isin(incorrect_words)]
-    
-    # 현재 날짜 추가
-    incorrect_df["Date"] = datetime.now().strftime("%Y-%m-%d")
-    incorrect_df["Incorrect"] = "Yes"  # 오답 표시
-    
-    # 구글 드라이브에 저장
-    return save_to_drive(incorrect_df, 'incorrect_words.csv')
 
 def save_marked_words_to_drive(filtered_data):
-    """단어 마크한 단어들을 구글 드라이브에 저장하는 함수"""
-    marked_words = st.session_state.marked_words  # 세션 상태에서 마크된 단어를 직접 가져옴
-    marked_df = filtered_data[filtered_data["Word"].isin(marked_words)]
-    
-    # 현재 날짜 추가
-    marked_df["Date"] = datetime.now().strftime("%Y-%m-%d")
-    marked_df["Marked"] = "Yes"  # 마크 표시
-
-    return save_to_drive(marked_df, 'marked_words.csv')
-
+    """마크된 단어를 구글 드라이브에 저장"""
+    marked_words = st.session_state.marked_words
+    marked_df = filtered_data[filtered_data['Word'].isin(marked_words)]
+    save_to_drive(marked_df, 'marked_words.csv')
 
 def mark_word(word):
-    """단어를 마크하거나 마크를 취소하는 함수"""
-    # 마크된 단어 목록을 세션 상태에 저장
-    if "marked_words" not in st.session_state:
-        st.session_state.marked_words = []  # 마크된 단어 목록 초기화
-    
-    # 단어가 이미 마크된 상태인지 확인
+    """단어를 마크하거나 마크를 취소"""
     if word in st.session_state.marked_words:
-        st.session_state.marked_words.remove(word)  # 마크 취소
-        return False  # 마크가 취소된 상태
+        st.session_state.marked_words.remove(word)
+        st.success("단어 마크를 취소했습니다.")
     else:
-        st.session_state.marked_words.append(word)  # 마크 처리
-        return True  # 마크된 상태
+        st.session_state.marked_words.append(word)
+        st.success("단어를 마크했습니다.")
