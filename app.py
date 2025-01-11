@@ -62,7 +62,7 @@ def load_data(file_url):
     return pd.read_excel(file_url)
 
 # GitHub에서 파일 URL
-file_url = 'https://raw.githubusercontent.com/blue-915/project/a478d554ddf9ff9b522ef24432c5b8b3d2147de1/os/%EB%85%B8%EB%9E%AD%EC%9D%B4%20%EC%A0%84%EB%A9%B4%EA%B0%9C%EC%A0%95%ED%8C%90.xlsx'
+file_url = 'https://github.com/blue-915/project/blob/5956c1216621d38651b9db80bca8ffa6e32d4c9f/%ED%86%A0%EC%9D%B5%20%EB%8B%A8%EC%96%B4%20%EC%A0%84%EB%A9%B4%EA%B0%9C%EC%A0%95%ED%8C%90.xlsx'
 data = load_data(file_url)
 
 # 페이지 이동 함수
