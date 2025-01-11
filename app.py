@@ -3,23 +3,39 @@ import pandas as pd
 import random
 import time
 
-from utils import (
-    get_sequential_word,
-    check_answer,
-    move_to_next_word,
-    update_word_and_options,
-    find_file_in_drive,
-    process_and_save_incorrect_answers,
-    save_incorrect_answers_to_drive,
-    load_incorrect_words_from_drive,
-    save_to_drive,
-    save_marked_words_to_drive,
-    mark_word,
-    get_current_word,
-    get_options, 
-    load_marked_words_from_drive,
-    check_answer_and_update,
-    move_to_next_word_and_update,
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'utils')))
+
+
+from utils.common_utils import (initialize_session,
+                                handle_page_navigation,
+                                get_credentials_from_secret_manager,
+                                load_google_credentials,
+                                save_to_drive,
+                                find_file_in_drive,
+                                initialize_drive_service,)
+
+from utils.learn_utils import (get_sequential_word,
+                                    check_answer,
+                                    move_to_next_word,
+                                    update_word_and_options,
+                                    process_and_save_incorrect_answers,
+                                    save_incorrect_answers_to_drive,
+                                    toggle_mark_word,
+    
+)
+from utils.review_utils import ( load_incorrect_words_from_drive,
+                                 get_current_word,
+                                 get_options,
+                                 check_answer_and_update,
+                                 move_to_next_word_and_update,
+    
+    
+)
+from utils.checklist_utils import ( load_marked_words_from_drive,
+	                                delete_marked_word_from_drive,
+    
 )
 
 
@@ -134,9 +150,9 @@ def learn_page():
             st.session_state.show_next_button = False  # 다음 단어 버튼 숨기기
 
     # 단어 마크
-    is_marked = current_word["Word"] in st.session_state.marked_words
+    is_marked = current_word["Word"] in st.session_state.get("marked_words", [])
     if st.button("이 단어를 마크하기" if not is_marked else "마크 취소", key="mark_word"):
-        mark_word(current_word["Word"])
+        toggle_mark_word(current_word["Word"], current_word)
 
 
 
@@ -148,70 +164,104 @@ def learn_page():
 
 def review_page():
     st.title("오답 복습")
-    if "filtered_data" not in st.session_state or st.session_state.filtered_data.empty:
-            st.error("필터링된 데이터가 없습니다. 홈 화면으로 돌아가세요.")
-            st.button("홈으로 이동", on_click=lambda: go_to_page("Home"))
-            return
 
-    filtered_data = st.session_state.filtered_data
+    # Google Drive 서비스 객체 생성
+    try:
+        drive_service = initialize_drive_service()
+    except Exception as e:
+        st.error(f"Google Drive 초기화 실패: {e}")
+        return
 
-    # 오답 데이터를 구글 드라이브에서 불러오기
-    incorrect_df = load_incorrect_words_from_drive()
+    # incorrect_df 초기화
+    if "incorrect_df" not in st.session_state:
+        st.session_state.incorrect_df = load_incorrect_words_from_drive()
+        st.write("### Debug: incorrect_df 초기화 완료")
+        st.write(st.session_state.incorrect_df)
 
-    if incorrect_df.empty:
+    # 데이터가 비어 있는 경우 처리
+    if st.session_state.incorrect_df.empty:
         st.write("현재 복습할 오답 단어가 없습니다.")
         st.button("홈으로 이동", on_click=lambda: go_to_page("Home"))
         return
 
-    # 현재 복습할 단어 가져오기
-    if "current_index" not in st.session_state:
-        st.session_state.current_index = 0  # 첫 번째 단어부터 시작
-
-    current_index = st.session_state.current_index
-    current_word, correct_answer = get_current_word(incorrect_df, current_index)
-
-    # 현재 단어가 None일 경우 처리
-    if current_word is None:
-        st.write("현재 복습할 단어가 없습니다.")
+    # 필터링된 데이터 확인
+    if "filtered_data" not in st.session_state or st.session_state.filtered_data.empty:
+        st.error("필터링된 데이터가 없습니다. 홈 화면으로 돌아가세요.")
         return
 
-    # 보기 선택지 생성
-    options = get_options(filtered_data, correct_answer)
+    filtered_data = st.session_state.filtered_data
 
-    # 보기 출력
-    st.write(f"단어: **{current_word['Word']}**")
-    selected_option = st.radio("뜻을 선택하세요:", options, key="options_radio")
+    # 세션 상태 초기화
+    if "current_word_index" not in st.session_state:
+        st.session_state.current_word_index = 0  # 초기 인덱스 설정
+    if "current_word" not in st.session_state:
+        st.session_state.current_word = None  # 현재 단어 초기화
+    if "correct_answer" not in st.session_state:
+        st.session_state.correct_answer = None  # 정답 초기화
+    if "options" not in st.session_state:
+        st.session_state.options = []  # 보기 선택지 초기화
+    if "show_next_button" not in st.session_state:
+        st.session_state.show_next_button = False  # 다음 단어 버튼 초기화
 
-    # 정답 확인 버튼 동작
-    if st.button("정답 확인"):
-        incorrect_df = check_answer_and_update(
-            selected_option, correct_answer, current_word, incorrect_df
+    # 현재 복습 단어 가져오기
+    if st.session_state.current_word is None:
+        st.session_state.current_word, st.session_state.correct_answer = get_current_word(
+            st.session_state.incorrect_df, st.session_state.current_word_index
         )
-    
-    # '다음 단어로' 버튼         
-    # 키에 current_index를 포함해 고유 키 생성
-    if st.button("다음 단어로", key=f"next_word_{st.session_state.current_index}"):
-        success = move_to_next_word_and_update(incorrect_df, filtered_data)
-        if success:
-            st.session_state.show_next_button = False
-            st.experimental_rerun()
+        st.session_state.options = get_options(filtered_data, st.session_state.correct_answer)
 
+    # 현재 단어와 보기 출력
+    st.write(f"단어: **{st.session_state.current_word['Word']}**")
+    selected_option = st.radio("뜻을 선택하세요:", st.session_state.options, key="options_radio")
 
+    # 정답 확인 버튼
+    if st.button("정답 확인"):
+        if selected_option == st.session_state.correct_answer:
+            st.success("정답입니다!")
+            # 삭제된 데이터 반영
+            st.session_state.incorrect_df = st.session_state.incorrect_df[
+                st.session_state.incorrect_df["Word"] != st.session_state.current_word["Word"]
+            ]
+            st.write("### Debug: 정답 확인 후 incorrect_df 상태")
+            st.write(st.session_state.incorrect_df)
+        else:
+            st.error(f"오답입니다! 정답은: {st.session_state.correct_answer}")
 
-    # 학습 기록 업데이트
-    st.write("### 학습 기록")
-    st.write(st.session_state.records)
+    # 다음 단어로 버튼
+    if st.button("다음 단어로"):
+        if not st.session_state.incorrect_df.empty:
+            st.session_state.current_word_index += 1
+            if st.session_state.current_word_index >= len(st.session_state.incorrect_df):
+                st.session_state.current_word_index = 0
+                st.warning("모든 단어를 학습했습니다. 다시 처음부터 시작합니다.")
 
-    # 버튼 UI
-    st.button("홈으로 이동", on_click=lambda: go_to_page("Home"))
-  
+            st.session_state.current_word, st.session_state.correct_answer = get_current_word(
+                st.session_state.incorrect_df, st.session_state.current_word_index
+            )
+            st.session_state.options = get_options(filtered_data, st.session_state.correct_answer)
+            st.write("### Debug: 다음 단어로 버튼 클릭 후 상태")
+            st.write({"current_word": st.session_state.current_word, "correct_answer": st.session_state.correct_answer})
+            st.write(st.session_state.options)
+        else:
+            st.write("마지막 단어입니다.")
+
+    # 디버깅: 현재 저장된 오답 데이터프레임 출력
+    st.write("### Debug: 현재 저장된 오답 데이터프레임")
+    st.write(st.session_state.incorrect_df)
+
+    # 홈 페이지로 이동 버튼
+    st.button("홈 페이지로 이동", on_click=lambda: go_to_page("Home"))
+
 
         
 def review_checklist_page():
     st.title("복습용 체크리스트")
 
     # 마크된 단어 불러오기
-    marked_df = load_marked_words_from_drive()
+    if "marked_words_df" not in st.session_state:
+        st.session_state.marked_words_df = load_marked_words_from_drive()
+    
+    marked_df = st.session_state.marked_words_df
 
     if marked_df.empty:
         st.write("마크된 단어가 없습니다.")
@@ -229,20 +279,28 @@ def review_checklist_page():
         return
 
     # 체크리스트 생성
+    checked_words = []  # 선택된 단어 저장
     for idx, row in filtered_data.iterrows():
         col1, col2, col3 = st.columns([1, 4, 1])
         with col1:
             checked = st.checkbox("", key=f"check_{idx}")
+            if checked:
+                checked_words.append(row["Word"])
         with col2:
             st.write(f"{row['Word']} - {row['Meaning']}")
         with col3:
             if st.button("삭제", key=f"delete_{idx}"):
-                filtered_data = filtered_data.drop(idx)
-                save_to_drive(filtered_data, "marked_words.csv")
-                st.experimental_rerun()
+                st.session_state.marked_words_df = delete_marked_word_from_drive(row["Word"], marked_df)
+                st.experimental_set_query_params()  # URL 매개변수 초기화로 페이지 갱신
+
+    # 디버깅: 선택된 단어 상태
+    st.write("### Debug: 선택된 단어")
+    st.write(checked_words)
 
     # 홈 페이지로 이동 버튼
     st.button("홈 페이지로 이동", on_click=lambda: go_to_page("Home"))
+
+
 
 
 # 현재 페이지에 따라 다른 화면 표시
