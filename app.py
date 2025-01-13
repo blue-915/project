@@ -2,14 +2,11 @@ import streamlit as st
 import pandas as pd
 import random
 import time
-
 import requests
 from io import BytesIO
-
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'utils')))
-
 
 from utils.common_utils import (initialize_session,
                                 handle_page_navigation,
@@ -17,7 +14,7 @@ from utils.common_utils import (initialize_session,
                                 load_google_credentials,
                                 save_to_drive,
                                 find_file_in_drive,
-                                initialize_drive_service,)
+                                initialize_drive_service)
 
 from utils.learning_utils import (get_sequential_word,
                                     check_answer,
@@ -25,21 +22,16 @@ from utils.learning_utils import (get_sequential_word,
                                     update_word_and_options,
                                     process_and_save_incorrect_answers,
                                     save_incorrect_answers_to_drive,
-                                    toggle_mark_word,
-    
-)
-from utils.review_utils import ( load_incorrect_words_from_drive,
+                                    toggle_mark_word)
+
+from utils.review_utils import (load_incorrect_words_from_drive,
                                  get_current_word,
                                  get_options,
                                  check_answer_and_update,
-                                 move_to_next_word_and_update,
-    
-    
-)
-from utils.checklist_utils import ( load_marked_words_from_drive,
-	                                delete_marked_word_from_drive,
-    
-)
+                                 move_to_next_word_and_update)
+
+from utils.checklist_utils import (load_marked_words_from_drive,
+                                    delete_marked_word_from_drive)
 
 
 # 세션 상태 초기화
@@ -59,12 +51,12 @@ if "filtered_data" not in st.session_state:
     st.session_state.filtered_data = pd.DataFrame()
 
 
-
 @st.cache_data
 def load_data(file_url):
     response = requests.get(file_url)
     response.raise_for_status()  # HTTP 오류 처리
     return pd.read_excel(BytesIO(response.content), engine="openpyxl")
+
 
 # GitHub의 raw 파일 URL
 file_url = 'https://raw.githubusercontent.com/blue-915/project/5956c1216621d38651b9db80bca8ffa6e32d4c9f/토익%20단어%20전면개정판.xlsx'
@@ -72,13 +64,14 @@ file_url = 'https://raw.githubusercontent.com/blue-915/project/5956c1216621d3865
 # 데이터 로드
 data = load_data(file_url)
 
+
 # 페이지 이동 함수
 def go_to_page(page_name):
     st.session_state.page = page_name
-    
+
 # 구글 드라이브 API 인증
 def load_google_credentials(secret_name):
-    credentials_json = get_credentials_from_secret_manager()  # Get the credentials
+    credentials_json = get_credentials_from_secret_manager()  # Get the credentials from Google Secret Manager
     st.write("Google Credentials Loaded Successfully")
     return credentials_json
 
@@ -139,7 +132,6 @@ def learn_page():
     # 보기 선택
     selected_option = st.radio("뜻을 선택하세요:", st.session_state.options, key="options_radio")
 
-
     # 정답 확인 버튼
     if st.button("정답 확인", key="check_answer"):
         # 정답 확인
@@ -160,8 +152,6 @@ def learn_page():
     is_marked = current_word["Word"] in st.session_state.get("marked_words", [])
     if st.button("이 단어를 마크하기" if not is_marked else "마크 취소", key="mark_word"):
         toggle_mark_word(current_word["Word"], current_word)
-
-
 
     # 학습 기록 업데이트
     st.write("### 학습 기록")
@@ -258,56 +248,6 @@ def review_page():
 
     # 홈 페이지로 이동 버튼
     st.button("홈 페이지로 이동", on_click=lambda: go_to_page("Home"))
-
-
-        
-def review_checklist_page():
-    st.title("복습용 체크리스트")
-
-    # 마크된 단어 불러오기
-    if "marked_words_df" not in st.session_state:
-        st.session_state.marked_words_df = load_marked_words_from_drive()
-    
-    marked_df = st.session_state.marked_words_df
-
-    if marked_df.empty:
-        st.write("마크된 단어가 없습니다.")
-        return
-
-    # Day 선택
-    days = marked_df["Day"].unique()
-    selected_day = st.selectbox("Day 선택:", days)
-
-    # 선택한 Day에 해당하는 단어 필터링
-    filtered_data = marked_df[marked_df["Day"] == selected_day]
-
-    if filtered_data.empty:
-        st.write(f"{selected_day}에 해당하는 마크된 단어가 없습니다.")
-        return
-
-    # 체크리스트 생성
-    checked_words = []  # 선택된 단어 저장
-    for idx, row in filtered_data.iterrows():
-        col1, col2, col3 = st.columns([1, 4, 1])
-        with col1:
-            checked = st.checkbox("", key=f"check_{idx}")
-            if checked:
-                checked_words.append(row["Word"])
-        with col2:
-            st.write(f"{row['Word']} - {row['Meaning']}")
-        with col3:
-            if st.button("삭제", key=f"delete_{idx}"):
-                st.session_state.marked_words_df = delete_marked_word_from_drive(row["Word"], marked_df)
-                st.experimental_set_query_params()  # URL 매개변수 초기화로 페이지 갱신
-
-    # 디버깅: 선택된 단어 상태
-    st.write("### Debug: 선택된 단어")
-    st.write(checked_words)
-
-    # 홈 페이지로 이동 버튼
-    st.button("홈 페이지로 이동", on_click=lambda: go_to_page("Home"))
-
-
 
 
 # 현재 페이지에 따라 다른 화면 표시

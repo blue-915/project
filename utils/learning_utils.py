@@ -14,7 +14,6 @@ from utils.common_utils import (initialize_session,
                                 save_to_drive,
                                 find_file_in_drive)
 
-
 def get_sequential_word(filtered_data):
     """순차적으로 단어와 정답을 반환하는 함수"""
     current_index = st.session_state.current_index
@@ -44,7 +43,6 @@ def check_answer(user_input, correct_answer, filtered_data):
             "Result": "Incorrect"
         })
 
-
 def move_to_next_word(filtered_data):
     """다음 단어로 이동하는 함수"""
     st.session_state.current_index += 1
@@ -58,9 +56,6 @@ def update_word_and_options(filtered_data):
     st.session_state.current_word = current_word
     st.session_state.correct_answer = correct_answer
     st.session_state.options = options
-
-from datetime import datetime
-import pandas as pd
 
 def process_and_save_incorrect_answers(selected_option, correct_answer, current_word):
     """
@@ -98,9 +93,6 @@ def process_and_save_incorrect_answers(selected_option, correct_answer, current_
 
     else:
         st.write("정답입니다! 저장된 오답 데이터는 변경되지 않았습니다.")
-
-
-from datetime import datetime
 
 def save_incorrect_answers_to_drive(filtered_data):
     """오답 데이터를 구글 드라이브에 저장"""

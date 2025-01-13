@@ -34,7 +34,7 @@ def load_incorrect_words_from_drive():
     except Exception as e:
         st.error(f"오답 데이터를 불러오는 중 오류 발생: {e}")
         return pd.DataFrame()
-    
+
 def get_current_word(incorrect_df, current_index):
     """
     현재 단어와 정답 반환.
@@ -98,7 +98,6 @@ def check_answer_and_update(selected_option, correct_answer, current_word, incor
     )
     return incorrect_df
 
-
 def process_and_save_incorrect_answers(selected_option, correct_answer, current_word, incorrect_df, drive_service):
     """
     오답 단어를 처리하고 데이터프레임을 갱신하며, 구글 드라이브에 저장.
@@ -125,14 +124,13 @@ def process_and_save_incorrect_answers(selected_option, correct_answer, current_
 
     return incorrect_df
 
-
 def verify_answer(selected_option, correct_answer):
     if selected_option == correct_answer:
         st.success("정답입니다!")
         return True
     else:
         return False
-    
+
 def remove_correct_word_from_df(current_word, incorrect_df):
     updated_df = incorrect_df[incorrect_df["Word"] != current_word["Word"]]
     st.write("### Debug: 삭제 후 남은 오답 데이터프레임")
@@ -154,9 +152,6 @@ def save_incorrect_df_to_drive(incorrect_df, drive_service):
 
 def show_incorrect_message(correct_answer):
     st.error(f"오답입니다! 정답은: {correct_answer}")
-
-
-
 
 def move_to_next_word_and_update(incorrect_df, filtered_data):
     """
@@ -199,4 +194,3 @@ def move_to_next_word_and_update(incorrect_df, filtered_data):
     except Exception as e:
         st.error(f"오류 발생: {e}")
         return False
-        

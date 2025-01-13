@@ -1,11 +1,13 @@
 import os
 import random
 import pandas as pd
+import streamlit as st
 from datetime import datetime
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-import streamlit as st
+from google.cloud import secretmanager
+from googleapiclient.http import MediaFileUpload
 
 def initialize_session():
     """세션 상태 초기화"""
@@ -30,10 +32,7 @@ def handle_page_navigation(page_name):
     """페이지 이동 처리"""
     st.session_state.page = page_name
     
-import os
-from google.cloud import secretmanager
-from google.oauth2.service_account import Credentials
-import streamlit as st
+
 
 # Google Secret Manager에서 Secret을 가져오는 함수
 def access_secret_version(project_id, secret_id, version_id="latest"):
@@ -104,7 +103,7 @@ def load_google_credentials():
         st.error(f"DEBUG - Google Credentials 로드 중 오류 발생: {e}")
         return None
 
-# Streamlit 앱 실행
+# Google API와 연동된 Streamlit 앱 실행
 st.title("Google Secret Manager와 연동된 Streamlit 앱")
 
 # Google Secret Manager에서 Secret을 가져오고 환경 변수 설정
@@ -118,9 +117,7 @@ if credentials:
 else:
     st.error("Google API 연동 실패")
 
-
-
-
+# 구글 드라이브에 데이터프레임 저장
 def save_to_drive(dataframe, filename):
     """구글 드라이브에 데이터프레임 저장"""
     filepath = f"/tmp/{filename}"
@@ -128,6 +125,7 @@ def save_to_drive(dataframe, filename):
 
     credentials = load_google_credentials()
     if not credentials:
+        st.error("Google Credentials가 없으므로 저장을 할 수 없습니다.")
         return
 
     drive_service = build("drive", "v3", credentials=credentials)
@@ -145,16 +143,15 @@ def find_file_in_drive(filename, drive_service):
     files = results.get("files", [])
     return files[0]["id"] if files else None
 
-# common_utils.py
+# Google Drive API 서비스 객체를 초기화하는 함수
 def initialize_drive_service():
     """
     Google Drive API 서비스 객체를 초기화하는 함수.
-
-    Returns:
-        drive_service: Google Drive API 서비스 객체
     """
     credentials = load_google_credentials()
     if credentials:
+        st.write("DEBUG - Google Drive 서비스 객체 초기화 성공.")
         return build("drive", "v3", credentials=credentials)
     else:
+        st.error("DEBUG - Google Drive 인증에 실패했습니다.")
         raise Exception("Google Drive 인증에 실패했습니다.")
