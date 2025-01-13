@@ -40,12 +40,24 @@ TEMP_CREDENTIALS_PATH = "/tmp/SERVICE_ACCOUNT_JSON"
 # 환경 변수에서 서비스 계정 키 JSON 값 로드
 google_credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
 
+# 디버깅: 환경 변수 값 확인
+st.write("DEBUG - GOOGLE_APPLICATION_CREDENTIALS_JSON:", google_credentials_json)
+
 if google_credentials_json:
     # JSON 값을 임시 파일에 저장
-    with open(TEMP_CREDENTIALS_PATH, "w") as file:
-        file.write(google_credentials_json)
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = TEMP_CREDENTIALS_PATH
+    try:
+        with open(TEMP_CREDENTIALS_PATH, "w") as file:
+            file.write(google_credentials_json)
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = TEMP_CREDENTIALS_PATH
+
+        # 디버깅: 파일 내용 확인
+        with open(TEMP_CREDENTIALS_PATH, "r") as file:
+            st.write("DEBUG - Created JSON File Content:", file.read())
+
+    except Exception as e:
+        st.error(f"DEBUG - JSON 파일 저장 중 오류 발생: {e}")
 else:
+    st.error("환경변수 GOOGLE_APPLICATION_CREDENTIALS_JSON이 설정되지 않았습니다.")
     raise ValueError("환경변수 GOOGLE_APPLICATION_CREDENTIALS_JSON이 설정되지 않았습니다.")
 
 def get_credentials_from_secret_manager():
@@ -68,8 +80,6 @@ def load_google_credentials():
     except Exception as e:
         st.error(f"Google Credentials 로드 중 오류가 발생했습니다: {e}")
         return None
-
-
 
 # 환경 변수 디버깅 출력
 st.write("GOOGLE_APPLICATION_CREDENTIALS_JSON 내용:", os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON"))
