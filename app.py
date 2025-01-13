@@ -5,15 +5,17 @@ import time
 
 import sys
 import os
+
+# utils 디렉토리를 경로에 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'utils')))
 
-# 상대 경로로 임포트
-from .checklist_utils import (
+# 절대 경로로 임포트
+from checklist_utils import (
     load_marked_words_from_drive,
     delete_marked_word_from_drive
 )
 
-from .common_utils import (
+from common_utils import (
     initialize_session,
     handle_page_navigation,
     get_credentials_from_secret_manager,
@@ -23,7 +25,7 @@ from .common_utils import (
     initialize_drive_service,
 )
 
-from .learning_utils import (
+from learning_utils import (
     get_sequential_word,
     check_answer,
     move_to_next_word,
@@ -33,7 +35,7 @@ from .learning_utils import (
     toggle_mark_word,
 )
 
-from .review_utils import (
+from review_utils import (
     load_incorrect_words_from_drive,
     get_current_word,
     get_options,
@@ -44,6 +46,7 @@ from .review_utils import (
 # 디버깅: 현재 디렉토리와 utils 폴더의 파일들을 확인
 print("Current directory:", os.getcwd())
 print("Files in utils folder:", os.listdir(os.path.join(os.getcwd(), 'utils')))
+
 
 
 # 세션 상태 초기화
