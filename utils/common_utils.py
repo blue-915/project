@@ -30,19 +30,29 @@ def handle_page_navigation(page_name):
     """페이지 이동 처리"""
     st.session_state.page = page_name
     
-# 경로를 직접 설정 (수정된 부분)
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/tmp/SERVICE_ACCOUNT_JSON"
+import os
+from google.oauth2.service_account import Credentials
+import streamlit as st
 
-# 서비스 계정 키를 임시 파일로 저장 (수정된 부분)
-with open(os.environ["GOOGLE_APPLICATION_CREDENTIALS"], "w") as file:
-    file.write(os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON"))
+# 서비스 계정 키를 저장할 임시 파일 경로
+TEMP_CREDENTIALS_PATH = "/tmp/SERVICE_ACCOUNT_JSON"
+
+# 환경 변수에서 서비스 계정 키 JSON 값 로드
+google_credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+
+if google_credentials_json:
+    # JSON 값을 임시 파일에 저장
+    with open(TEMP_CREDENTIALS_PATH, "w") as file:
+        file.write(google_credentials_json)
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = TEMP_CREDENTIALS_PATH
+else:
+    raise ValueError("환경변수 GOOGLE_APPLICATION_CREDENTIALS_JSON이 설정되지 않았습니다.")
 
 def get_credentials_from_secret_manager():
     """구글 서비스 계정 인증을 위한 함수"""
     credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
     if not credentials_path:
         raise ValueError("GOOGLE_APPLICATION_CREDENTIALS 환경변수가 설정되지 않았습니다.")
-    from google.oauth2.service_account import Credentials
     return Credentials.from_service_account_file(credentials_path)
 
 def load_google_credentials():
@@ -51,9 +61,14 @@ def load_google_credentials():
     if not credentials_path:
         st.error("Google Credentials 경로가 설정되지 않았습니다.")
         return None
-    credentials = Credentials.from_service_account_file(credentials_path)
-    st.write("Google Credentials Loaded Successfully")
-    return credentials
+    try:
+        credentials = Credentials.from_service_account_file(credentials_path)
+        st.write("Google Credentials Loaded Successfully")
+        return credentials
+    except Exception as e:
+        st.error(f"Google Credentials 로드 중 오류가 발생했습니다: {e}")
+        return None
+
 
 
 def save_to_drive(dataframe, filename):
