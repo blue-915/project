@@ -1,13 +1,11 @@
 import os
 import random
 import pandas as pd
-import streamlit as st
 from datetime import datetime
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-from google.cloud import secretmanager
-from googleapiclient.http import MediaFileUpload
+import streamlit as st
 
 def initialize_session():
     """세션 상태 초기화"""
@@ -33,125 +31,75 @@ def handle_page_navigation(page_name):
     st.session_state.page = page_name
     
 
+import os
+from google.oauth2 import service_account
+import streamlit as st
 
-# Google Secret Manager에서 Secret을 가져오는 함수
-def access_secret_version(project_id, secret_id, version_id="latest"):
-    """
-    Google Secret Manager에서 Secret 값을 가져오는 함수.
-    """
-    try:
-        # Secret Manager 클라이언트 생성
-        client = secretmanager.SecretManagerServiceClient()
+def get_credentials_from_secret_manager():
+    """구글 서비스 계정 인증을 위한 함수"""
+    # Kubernetes에서 마운트된 서비스 계정 파일 경로를 환경 변수로 설정
+    credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "/app/service-account-file.json")
+    
+    if not credentials_path:
+        raise ValueError("GOOGLE_APPLICATION_CREDENTIALS 환경변수가 설정되지 않았습니다.")
+    
+    # 서비스 계정 인증을 가져옵니다.
+    return service_account.Credentials.from_service_account_file(credentials_path)
 
-        # Secret 경로 생성
-        name = f"projects/{project_id}/secrets/{secret_id}/versions/{version_id}"
-
-        # Secret 가져오기
-        response = client.access_secret_version(name=name)
-        secret_data = response.payload.data.decode("UTF-8")
-
-        st.write("DEBUG - Secret 데이터를 성공적으로 가져왔습니다.")
-        return secret_data
-    except Exception as e:
-        st.error(f"DEBUG - Google Secret Manager에서 Secret 가져오기 실패: {e}")
-        raise ValueError("Google Secret Manager 연동 오류 발생")
-
-# Google Secret Manager 연동 및 환경 변수 설정
-def setup_google_credentials():
-    """
-    Google Secret Manager에서 서비스 계정 키를 가져와 환경 변수로 설정.
-    """
-    try:
-        # GCP 프로젝트 ID 및 Secret 이름
-        project_id = "silent-album-447213-g4"  # GCP 프로젝트 ID를 입력하세요
-        secret_id = "projects/232555212335/secrets/project"  # Secret 이름
-
-        # Secret Manager에서 JSON 키 가져오기
-        google_credentials_json = access_secret_version(project_id, secret_id)
-
-        # 서비스 계정 키를 임시 파일로 저장
-        TEMP_CREDENTIALS_PATH = "/tmp/service_account.json"
-        with open(TEMP_CREDENTIALS_PATH, "w") as file:
-            file.write(google_credentials_json)
-        
-        # 환경 변수 설정
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = TEMP_CREDENTIALS_PATH
-
-        # 디버깅: JSON 키 파일 확인
-        with open(TEMP_CREDENTIALS_PATH, "r") as file:
-            st.write("DEBUG - 저장된 JSON 키 파일 내용:", file.read())
-
-        st.success("Google Credentials 설정 완료")
-    except Exception as e:
-        st.error(f"DEBUG - Google Credentials 설정 중 오류 발생: {e}")
-        raise ValueError("Google Credentials 설정 실패")
-
-# Google Credentials 로드 함수
 def load_google_credentials():
-    """
-    서비스 계정 키를 통해 Google Credentials를 로드.
-    """
-    try:
-        credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-        if not credentials_path:
-            raise ValueError("환경변수 GOOGLE_APPLICATION_CREDENTIALS가 설정되지 않았습니다.")
-
-        credentials = Credentials.from_service_account_file(credentials_path)
-        st.write("DEBUG - Google Credentials 성공적으로 로드되었습니다.")
-        return credentials
-    except Exception as e:
-        st.error(f"DEBUG - Google Credentials 로드 중 오류 발생: {e}")
+    """구글 서비스 계정 인증 로드"""
+    # Kubernetes에서 마운트된 서비스 계정 파일 경로를 환경 변수로 설정
+    credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "/app/service-account-file.json")
+    
+    if not credentials_path:
+        st.error("Google Credentials 경로가 설정되지 않았습니다.")
         return None
+    
+    # 서비스 계정 인증을 가져옵니다.
+    credentials = service_account.Credentials.from_service_account_file(credentials_path)
+    st.write("Google Credentials Loaded Successfully")
+    return credentials
 
-# Google API와 연동된 Streamlit 앱 실행
-st.title("Google Secret Manager와 연동된 Streamlit 앱")
 
-# Google Secret Manager에서 Secret을 가져오고 환경 변수 설정
-setup_google_credentials()
+from google.cloud import storage
+import pandas as pd
 
-# Google Credentials 로드 테스트
-credentials = load_google_credentials()
-
-if credentials:
-    st.success("Google API와 연동 성공!")
-else:
-    st.error("Google API 연동 실패")
-
-# 구글 드라이브에 데이터프레임 저장
-def save_to_drive(dataframe, filename):
-    """구글 드라이브에 데이터프레임 저장"""
+def save_to_gcs(dataframe, filename, bucket_name):
+    """구글 클라우드 저장소에 데이터프레임 저장"""
     filepath = f"/tmp/{filename}"
     dataframe.to_csv(filepath, index=False)
 
-    credentials = load_google_credentials()
-    if not credentials:
-        st.error("Google Credentials가 없으므로 저장을 할 수 없습니다.")
-        return
+    # Google Cloud Storage 클라이언트 초기화
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    
+    # 기존에 같은 이름의 파일이 있으면 삭제
+    blob = bucket.blob(filename)
+    if blob.exists():
+        blob.delete()
 
-    drive_service = build("drive", "v3", credentials=credentials)
-    file_id = find_file_in_drive(filename, drive_service)
-    if file_id:
-        drive_service.files().delete(fileId=file_id).execute()
+    # 파일 업로드
+    blob.upload_from_filename(filepath)
+    print(f"파일 {filename}이(가) {bucket_name} 버킷에 업로드되었습니다.")
 
-    file_metadata = {"name": filename}
-    media = MediaFileUpload(filepath, mimetype="text/csv")
-    drive_service.files().create(body=file_metadata, media_body=media).execute()
+def find_file_in_gcs(filename, bucket_name):
+    """구글 클라우드 저장소에서 파일 검색"""
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    
+    # 파일이 존재하는지 확인
+    blob = bucket.blob(filename)
+    if blob.exists():
+        return blob.name  # 파일 경로 반환
+    return None
 
-def find_file_in_drive(filename, drive_service):
-    """구글 드라이브에서 파일 검색"""
-    results = drive_service.files().list(q=f"name = '{filename}'", fields="files(id, name)").execute()
-    files = results.get("files", [])
-    return files[0]["id"] if files else None
-
-# Google Drive API 서비스 객체를 초기화하는 함수
-def initialize_drive_service():
+# common_utils.py
+def initialize_gcs_client():
     """
-    Google Drive API 서비스 객체를 초기화하는 함수.
+    Google Cloud Storage 클라이언트 객체를 초기화하는 함수.
+
+    Returns:
+        storage_client: Google Cloud Storage 클라이언트 객체
     """
-    credentials = load_google_credentials()
-    if credentials:
-        st.write("DEBUG - Google Drive 서비스 객체 초기화 성공.")
-        return build("drive", "v3", credentials=credentials)
-    else:
-        st.error("DEBUG - Google Drive 인증에 실패했습니다.")
-        raise Exception("Google Drive 인증에 실패했습니다.")
+    storage_client = storage.Client()
+    return storage_client

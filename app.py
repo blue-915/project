@@ -2,36 +2,49 @@ import streamlit as st
 import pandas as pd
 import random
 import time
-import requests
-from io import BytesIO
+from google.cloud import storage
+
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'utils')))
 
-from utils.common_utils import (initialize_session,
-                                handle_page_navigation,
-                                get_credentials_from_secret_manager,
-                                load_google_credentials,
-                                save_to_drive,
-                                find_file_in_drive,
-                                initialize_drive_service)
 
-from utils.learning_utils import (get_sequential_word,
-                                    check_answer,
-                                    move_to_next_word,
-                                    update_word_and_options,
-                                    process_and_save_incorrect_answers,
-                                    save_incorrect_answers_to_drive,
-                                    toggle_mark_word)
+from utils.common_utils import ( initialize_session,
+                                    load_data,
+                                    handle_page_navigation,
+                                    get_credentials_from_secret_manager,
+                                    load_google_credentials,
+                                    save_to_gcs,
+                                    find_file_in_gcs,
+                                    initialize_gcs_client,
+)
 
-from utils.review_utils import (load_incorrect_words_from_drive,
-                                 get_current_word,
-                                 get_options,
-                                 check_answer_and_update,
-                                 move_to_next_word_and_update)
-
-from utils.checklist_utils import (load_marked_words_from_drive,
-                                    delete_marked_word_from_drive)
+from utils.learning_utils import (save_to_gcs, 
+                                  find_file_in_gcs, 
+                                  save_incorrect_answers_to_gcs, 
+                                  save_or_remove_marked_words, 
+                                  delete_from_gcs, 
+                                  toggle_mark_word, 
+                                  initialize_marked_words_state, 
+                                  add_word_to_marked_list, 
+                                  remove_word_from_marked_list, 
+                                  check_answer, 
+                                  move_to_next_word, 
+                                  update_word_and_options, 
+                                  get_sequential_word
+    
+)
+from utils.review_utils import ( initialize_session, handle_page_navigation, 
+                                get_credentials_from_secret_manager, load_google_credentials, 
+                                load_incorrect_words_from_gcs, get_current_word, get_options, 
+                                check_answer_and_update, process_and_save_incorrect_answers, 
+                                verify_answer, 
+                                remove_correct_word_from_df, save_incorrect_df_to_gcs, 
+                                show_incorrect_message
+)
+from utils.checklist_utils import ( load_marked_words_from_gcs,
+                                    delete_marked_word_from_gcs,    
+)
 
 
 # 세션 상태 초기화
@@ -51,36 +64,47 @@ if "filtered_data" not in st.session_state:
     st.session_state.filtered_data = pd.DataFrame()
 
 
+
 @st.cache_data
 def load_data(file_url):
-    response = requests.get(file_url)
-    response.raise_for_status()  # HTTP 오류 처리
-    return pd.read_excel(BytesIO(response.content), engine="openpyxl")
+    return pd.read_excel(file_url)
 
-
-# GitHub의 raw 파일 URL
-file_url = 'https://raw.githubusercontent.com/blue-915/project/5956c1216621d38651b9db80bca8ffa6e32d4c9f/토익%20단어%20전면개정판.xlsx'
-
-# 데이터 로드
+# GitHub에서 파일 URL
+file_url = 'https://raw.githubusercontent.com/blue-915/project/a478d554ddf9ff9b522ef24432c5b8b3d2147de1/os/%EB%85%B8%EB%9E%AD%EC%9D%B4%20%EC%A0%84%EB%A9%B4%EA%B0%9C%EC%A0%95%ED%8C%90.xlsx'
 data = load_data(file_url)
-
 
 # 페이지 이동 함수
 def go_to_page(page_name):
     st.session_state.page = page_name
+    
 
-# 구글 드라이브 API 인증
+# GCS 인증
 def load_google_credentials(secret_name):
-    credentials_json = get_credentials_from_secret_manager()  # Get the credentials from Google Secret Manager
-    st.write("Google Credentials Loaded Successfully")
-    return credentials_json
+    """구글 클라우드 저장소(GCS) 인증을 위한 함수"""
+    credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "/app/service-account-file.json")
+    
+    if not credentials_path:
+        st.error("Google Credentials 경로가 설정되지 않았습니다.")
+        return None
+    
+    # 서비스 계정 인증을 가져옵니다.
+    credentials = storage.Client.from_service_account_json(credentials_path)
+    st.write("Google Cloud Storage Credentials Loaded Successfully")
+    return credentials
 
 def main():
-    # 구글 인증 정보 로드
+    # 구글 클라우드 저장소 인증 정보 로드
     credentials_json = load_google_credentials("project")
 
     # Your remaining app code...
-    st.write("Google Credentials Loaded Successfully")
+    st.write("Google Cloud Storage Credentials Loaded Successfully")
+
+    # Example: List the available buckets
+    if credentials_json:
+        storage_client = credentials_json
+        buckets = storage_client.list_buckets()
+        for bucket in buckets:
+            st.write(bucket.name)
 
 
 # 페이지별 내용
@@ -132,12 +156,13 @@ def learn_page():
     # 보기 선택
     selected_option = st.radio("뜻을 선택하세요:", st.session_state.options, key="options_radio")
 
+
     # 정답 확인 버튼
     if st.button("정답 확인", key="check_answer"):
         # 정답 확인
         check_answer(selected_option, st.session_state.correct_answer, filtered_data)
-        # 오답 처리 및 저장 함수 호출
-        process_and_save_incorrect_answers(selected_option, st.session_state.correct_answer, current_word)
+        # 오답 처리 및 저장 함수 호출 (GCS에 오답 저장)
+        save_incorrect_answers_to_gcs(filtered_data, "your-bucket-name")  # GCS 버킷 이름 추가
         # 다음 단어로 버튼 활성화
         st.session_state.show_next_button = True
          
@@ -151,7 +176,7 @@ def learn_page():
     # 단어 마크
     is_marked = current_word["Word"] in st.session_state.get("marked_words", [])
     if st.button("이 단어를 마크하기" if not is_marked else "마크 취소", key="mark_word"):
-        toggle_mark_word(current_word["Word"], current_word)
+        toggle_mark_word(current_word["Word"], current_word, "your-bucket-name")  # GCS 버킷 이름 추가
 
     # 학습 기록 업데이트
     st.write("### 학습 기록")
@@ -159,19 +184,21 @@ def learn_page():
 
     st.button("홈으로 이동", on_click=lambda: go_to_page("Home"))
 
+
 def review_page():
     st.title("오답 복습")
 
-    # Google Drive 서비스 객체 생성
+    # Google Cloud Storage 서비스 객체 생성
     try:
-        drive_service = initialize_drive_service()
+        storage_client = initialize_gcs_client()  # 기존 호출 함수 사용
     except Exception as e:
-        st.error(f"Google Drive 초기화 실패: {e}")
+        st.error(f"Google Cloud Storage 초기화 실패: {e}")
         return
 
     # incorrect_df 초기화
     if "incorrect_df" not in st.session_state:
-        st.session_state.incorrect_df = load_incorrect_words_from_drive()
+        # GCS에서 오답 데이터를 로드하는 기존 호출 함수 사용
+        st.session_state.incorrect_df = load_incorrect_words_from_gcs("your-bucket-name")  # GCS 버킷 이름 전달
         st.write("### Debug: incorrect_df 초기화 완료")
         st.write(st.session_state.incorrect_df)
 
@@ -221,6 +248,8 @@ def review_page():
             ]
             st.write("### Debug: 정답 확인 후 incorrect_df 상태")
             st.write(st.session_state.incorrect_df)
+            # GCS에 오답 데이터를 저장하는 기존 호출 함수 사용
+            save_incorrect_df_to_gcs(st.session_state.incorrect_df, "your-bucket-name")  # GCS 버킷 이름 전달
         else:
             st.error(f"오답입니다! 정답은: {st.session_state.correct_answer}")
 
@@ -245,6 +274,56 @@ def review_page():
     # 디버깅: 현재 저장된 오답 데이터프레임 출력
     st.write("### Debug: 현재 저장된 오답 데이터프레임")
     st.write(st.session_state.incorrect_df)
+
+    # 홈 페이지로 이동 버튼
+    st.button("홈 페이지로 이동", on_click=lambda: go_to_page("Home"))
+
+
+        
+def review_checklist_page():
+    st.title("복습용 체크리스트")
+
+    # 마크된 단어 불러오기
+    if "marked_words_df" not in st.session_state:
+        # GCS에서 마크된 단어를 불러오는 함수 호출 (기존 호출 함수 활용)
+        st.session_state.marked_words_df = load_marked_words_from_gcs("your-bucket-name")  # GCS 버킷 이름 전달
+    
+    marked_df = st.session_state.marked_words_df
+
+    if marked_df.empty:
+        st.write("마크된 단어가 없습니다.")
+        return
+
+    # Day 선택
+    days = marked_df["Day"].unique()
+    selected_day = st.selectbox("Day 선택:", days)
+
+    # 선택한 Day에 해당하는 단어 필터링
+    filtered_data = marked_df[marked_df["Day"] == selected_day]
+
+    if filtered_data.empty:
+        st.write(f"{selected_day}에 해당하는 마크된 단어가 없습니다.")
+        return
+
+    # 체크리스트 생성
+    checked_words = []  # 선택된 단어 저장
+    for idx, row in filtered_data.iterrows():
+        col1, col2, col3 = st.columns([1, 4, 1])
+        with col1:
+            checked = st.checkbox("", key=f"check_{idx}")
+            if checked:
+                checked_words.append(row["Word"])
+        with col2:
+            st.write(f"{row['Word']} - {row['Meaning']}")
+        with col3:
+            if st.button("삭제", key=f"delete_{idx}"):
+                # GCS에서 단어 삭제하는 함수 호출 (기존 호출 함수 활용)
+                st.session_state.marked_words_df = delete_marked_word_from_gcs(row["Word"], marked_df, "your-bucket-name")
+                st.experimental_set_query_params()  # URL 매개변수 초기화로 페이지 갱신
+
+    # 디버깅: 선택된 단어 상태
+    st.write("### Debug: 선택된 단어")
+    st.write(checked_words)
 
     # 홈 페이지로 이동 버튼
     st.button("홈 페이지로 이동", on_click=lambda: go_to_page("Home"))

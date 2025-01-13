@@ -1,4 +1,4 @@
-name: Deploy Streamlit App
+name: Deploy to Streamlit Cloud
 
 on:
   push:
@@ -8,24 +8,20 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v2
-
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: "3.9"
-
+        
+      - name: Set up Google Cloud credentials
+        run: echo "${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}" > service-account-file.json
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
+      
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-
-      - name: Pass Google Credentials to Streamlit
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
+          
+      - name: Deploy to Streamlit Cloud
         run: |
-          echo "${GOOGLE_APPLICATION_CREDENTIALS_JSON}" > service_account.json
-          export GOOGLE_APPLICATION_CREDENTIALS=service_account.json
           streamlit run app.py
