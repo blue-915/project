@@ -35,30 +35,42 @@ import os
 from google.oauth2 import service_account
 import streamlit as st
 
+import os
+import json
+from google.oauth2 import service_account
+import streamlit as st
+
 def get_credentials_from_secret_manager():
-    """구글 서비스 계정 인증을 위한 함수"""
-    # Kubernetes에서 마운트된 서비스 계정 파일 경로를 환경 변수로 설정
-    credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "/app/service-account-file.json")
+    """구글 서비스 계정 인증을 위한 함수 (Streamlit Cloud)"""
+    # 환경 변수에서 서비스 계정 JSON 문자열을 가져옵니다.
+    credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+
+    if not credentials_json:
+        raise ValueError("GOOGLE_APPLICATION_CREDENTIALS_JSON 환경변수가 설정되지 않았습니다.")
     
-    if not credentials_path:
-        raise ValueError("GOOGLE_APPLICATION_CREDENTIALS 환경변수가 설정되지 않았습니다.")
+    # JSON 문자열을 Python 딕셔너리로 변환
+    credentials_dict = json.loads(credentials_json)
     
     # 서비스 계정 인증을 가져옵니다.
-    return service_account.Credentials.from_service_account_file(credentials_path)
+    return service_account.Credentials.from_service_account_info(credentials_dict)
 
 def load_google_credentials():
-    """구글 서비스 계정 인증 로드"""
-    # Kubernetes에서 마운트된 서비스 계정 파일 경로를 환경 변수로 설정
-    credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "/app/service-account-file.json")
-    
-    if not credentials_path:
+    """구글 서비스 계정 인증 로드 (Streamlit Cloud)"""
+    # 환경 변수에서 서비스 계정 JSON 문자열을 가져옵니다.
+    credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+
+    if not credentials_json:
         st.error("Google Credentials 경로가 설정되지 않았습니다.")
         return None
     
+    # JSON 문자열을 Python 딕셔너리로 변환
+    credentials_dict = json.loads(credentials_json)
+    
     # 서비스 계정 인증을 가져옵니다.
-    credentials = service_account.Credentials.from_service_account_file(credentials_path)
+    credentials = service_account.Credentials.from_service_account_info(credentials_dict)
     st.write("Google Credentials Loaded Successfully")
     return credentials
+
 
 
 from google.cloud import storage

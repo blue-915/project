@@ -78,33 +78,43 @@ def go_to_page(page_name):
     st.session_state.page = page_name
     
 
-# GCS 인증
+import os
+import json
+from google.cloud import storage
+import streamlit as st
+
 def load_google_credentials(secret_name):
-    """구글 클라우드 저장소(GCS) 인증을 위한 함수"""
-    credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "/app/service-account-file.json")
-    
-    if not credentials_path:
+    """구글 클라우드 저장소(GCS) 인증을 위한 함수 (Streamlit Cloud)"""
+    # 환경 변수에서 서비스 계정 JSON 문자열을 가져옵니다.
+    credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+
+    if not credentials_json:
         st.error("Google Credentials 경로가 설정되지 않았습니다.")
         return None
     
-    # 서비스 계정 인증을 가져옵니다.
-    credentials = storage.Client.from_service_account_json(credentials_path)
+    # JSON 문자열을 Python 딕셔너리로 변환
+    credentials_dict = json.loads(credentials_json)
+    
+    # GCS 클라이언트 생성
+    credentials = storage.Client.from_service_account_info(credentials_dict)
     st.write("Google Cloud Storage Credentials Loaded Successfully")
+    
     return credentials
 
 def main():
     # 구글 클라우드 저장소 인증 정보 로드
-    credentials_json = load_google_credentials("project")
+    storage_client = load_google_credentials("project")  # GCS 클라이언트를 직접 반환하도록 수정
 
     # Your remaining app code...
     st.write("Google Cloud Storage Credentials Loaded Successfully")
 
     # Example: List the available buckets
-    if credentials_json:
-        storage_client = credentials_json
+    if storage_client:
+        # GCS 클라이언트를 사용하여 버킷 목록 가져오기
         buckets = storage_client.list_buckets()
         for bucket in buckets:
             st.write(bucket.name)
+
 
 
 # 페이지별 내용
