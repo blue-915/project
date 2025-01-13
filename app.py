@@ -16,7 +16,7 @@ from utils.common_utils import (initialize_session,
                                 find_file_in_drive,
                                 initialize_drive_service,)
 
-from utils.learn_utils import (get_sequential_word,
+from utils.learning_utils import (get_sequential_word,
                                     check_answer,
                                     move_to_next_word,
                                     update_word_and_options,

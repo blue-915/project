@@ -31,7 +31,7 @@ def handle_page_navigation(page_name):
     st.session_state.page = page_name
     
 # 경로를 직접 설정
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/Users/doyeon/Downloads/service_account.json"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/mnt/c/Users/User/Downloads/study/service_account.json"
 
 def get_credentials_from_secret_manager():
     """구글 서비스 계정 인증을 위한 함수"""
