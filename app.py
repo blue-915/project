@@ -29,13 +29,17 @@ from utils.review_utils import ( load_incorrect_words_from_drive,
                                  get_current_word,
                                  get_options,
                                  check_answer_and_update,
-                                 move_to_next_word_and_update,
-    
-    
+                                 move_to_next_word_and_update, 
 )
-from utils.checklist_utils import ( load_marked_words_from_drive,
-	                                delete_marked_word_from_drive,
-    
+
+import sys
+import os
+print("Current directory:", os.getcwd())
+print("Files in utils folder:", os.listdir(os.path.join(os.getcwd(), 'utils')))
+
+sys.path.append('./utils')  # utils 디렉토리를 경로에 추가
+from checklist_utils import ( load_marked_words_from_drive,
+	                          delete_marked_word_from_drive,
 )
 
 
