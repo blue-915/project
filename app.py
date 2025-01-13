@@ -7,40 +7,43 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'utils')))
 
-
-from utils.common_utils import (initialize_session,
-                                handle_page_navigation,
-                                get_credentials_from_secret_manager,
-                                load_google_credentials,
-                                save_to_drive,
-                                find_file_in_drive,
-                                initialize_drive_service,)
-
-from utils.learning_utils import (get_sequential_word,
-                                    check_answer,
-                                    move_to_next_word,
-                                    update_word_and_options,
-                                    process_and_save_incorrect_answers,
-                                    save_incorrect_answers_to_drive,
-                                    toggle_mark_word,
-    
-)
-from utils.review_utils import ( load_incorrect_words_from_drive,
-                                 get_current_word,
-                                 get_options,
-                                 check_answer_and_update,
-                                 move_to_next_word_and_update, 
+# 상대 경로로 임포트
+from .checklist_utils import (
+    load_marked_words_from_drive,
+    delete_marked_word_from_drive
 )
 
-import sys
-import os
+from .common_utils import (
+    initialize_session,
+    handle_page_navigation,
+    get_credentials_from_secret_manager,
+    load_google_credentials,
+    save_to_drive,
+    find_file_in_drive,
+    initialize_drive_service,
+)
+
+from .learning_utils import (
+    get_sequential_word,
+    check_answer,
+    move_to_next_word,
+    update_word_and_options,
+    process_and_save_incorrect_answers,
+    save_incorrect_answers_to_drive,
+    toggle_mark_word,
+)
+
+from .review_utils import (
+    load_incorrect_words_from_drive,
+    get_current_word,
+    get_options,
+    check_answer_and_update,
+    move_to_next_word_and_update,
+)
+
+# 디버깅: 현재 디렉토리와 utils 폴더의 파일들을 확인
 print("Current directory:", os.getcwd())
 print("Files in utils folder:", os.listdir(os.path.join(os.getcwd(), 'utils')))
-
-sys.path.append('./utils')  # utils 디렉토리를 경로에 추가
-from checklist_utils import ( load_marked_words_from_drive,
-	                          delete_marked_word_from_drive,
-)
 
 
 # 세션 상태 초기화
