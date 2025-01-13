@@ -6,8 +6,27 @@ import time
 import sys
 import os
 
+import os
+import sys
+
+# 현재 작업 디렉토리 출력
+print("Current working directory:", os.getcwd())
+
+# sys.path 확인: 경로가 제대로 추가되었는지
+print("Current sys.path:", sys.path)
+
+# utils 폴더 내 파일 확인
+utils_path = os.path.join(os.getcwd(), 'utils')
+if os.path.exists(utils_path):
+    print("Files in utils folder:", os.listdir(utils_path))
+else:
+    print(f"Error: 'utils' folder not found in {os.getcwd()}")
+
+
 # utils 디렉토리를 경로에 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'utils')))
+
+
 
 # 절대 경로로 임포트
 from checklist_utils import (
