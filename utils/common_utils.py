@@ -30,8 +30,12 @@ def handle_page_navigation(page_name):
     """페이지 이동 처리"""
     st.session_state.page = page_name
     
-# 경로를 직접 설정
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/mnt/c/Users/User/Downloads/study/service_account.json"
+# 경로를 직접 설정 (수정된 부분)
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/tmp/SERVICE_ACCOUNT_JSON"
+
+# 서비스 계정 키를 임시 파일로 저장 (수정된 부분)
+with open(os.environ["GOOGLE_APPLICATION_CREDENTIALS"], "w") as file:
+    file.write(os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON"))
 
 def get_credentials_from_secret_manager():
     """구글 서비스 계정 인증을 위한 함수"""
@@ -50,6 +54,7 @@ def load_google_credentials():
     credentials = Credentials.from_service_account_file(credentials_path)
     st.write("Google Credentials Loaded Successfully")
     return credentials
+
 
 def save_to_drive(dataframe, filename):
     """구글 드라이브에 데이터프레임 저장"""

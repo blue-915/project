@@ -3,6 +3,9 @@ import pandas as pd
 import random
 import time
 
+import requests
+from io import BytesIO
+
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'utils')))
@@ -59,10 +62,14 @@ if "filtered_data" not in st.session_state:
 
 @st.cache_data
 def load_data(file_url):
-    return pd.read_excel(file_url)
+    response = requests.get(file_url)
+    response.raise_for_status()  # HTTP 오류 처리
+    return pd.read_excel(BytesIO(response.content), engine="openpyxl")
 
-# GitHub에서 파일 URL
-file_url = 'https://github.com/blue-915/project/blob/5956c1216621d38651b9db80bca8ffa6e32d4c9f/%ED%86%A0%EC%9D%B5%20%EB%8B%A8%EC%96%B4%20%EC%A0%84%EB%A9%B4%EA%B0%9C%EC%A0%95%ED%8C%90.xlsx'
+# GitHub의 raw 파일 URL
+file_url = 'https://raw.githubusercontent.com/blue-915/project/5956c1216621d38651b9db80bca8ffa6e32d4c9f/토익%20단어%20전면개정판.xlsx'
+
+# 데이터 로드
 data = load_data(file_url)
 
 # 페이지 이동 함수
