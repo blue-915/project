@@ -1,0 +1,31 @@
+name: Deploy Streamlit App
+
+on:
+  push:
+    branches:
+      - main  # main 브랜치에 푸시할 때 실행
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Pass Google Credentials to Streamlit
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
+        run: |
+          echo "${GOOGLE_APPLICATION_CREDENTIALS_JSON}" > service_account.json
+          export GOOGLE_APPLICATION_CREDENTIALS=service_account.json
+          streamlit run app.py
