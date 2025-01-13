@@ -71,6 +71,12 @@ def load_google_credentials():
 
 
 
+# 환경 변수 디버깅 출력
+st.write("GOOGLE_APPLICATION_CREDENTIALS_JSON 내용:", os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON"))
+st.write("GOOGLE_APPLICATION_CREDENTIALS 경로:", os.getenv("GOOGLE_APPLICATION_CREDENTIALS"))
+
+
+
 def save_to_drive(dataframe, filename):
     """구글 드라이브에 데이터프레임 저장"""
     filepath = f"/tmp/{filename}"
