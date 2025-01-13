@@ -30,88 +30,64 @@ def handle_page_navigation(page_name):
     """페이지 이동 처리"""
     st.session_state.page = page_name
     
-
 import os
-from google.oauth2 import service_account
 import streamlit as st
-
-import os
-import json
-from google.oauth2 import service_account
-import streamlit as st
+from google.oauth2.service_account import Credentials
+import toml
 
 def get_credentials_from_secret_manager():
-    """구글 서비스 계정 인증을 위한 함수 (Streamlit Cloud)"""
-    # 환경 변수에서 서비스 계정 JSON 문자열을 가져옵니다.
-    credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
-
-    if not credentials_json:
-        raise ValueError("GOOGLE_APPLICATION_CREDENTIALS_JSON 환경변수가 설정되지 않았습니다.")
-    
-    # JSON 문자열을 Python 딕셔너리로 변환
-    credentials_dict = json.loads(credentials_json)
-    
-    # 서비스 계정 인증을 가져옵니다.
-    return service_account.Credentials.from_service_account_info(credentials_dict)
+    """구글 서비스 계정 인증을 위한 함수"""
+    secret_name = "google_credentials"  # 스트림릿 시크릿 이름
+    # 스트림릿 시크릿에서 TOML 형식의 데이터를 가져옴.
+    secret_data = st.secrets[secret_name]
+    credentials_json = secret_data["credentials_json"]  # toml 파일에 저장된 구글 인증 정보
+    return Credentials.from_service_account_info(credentials_json)  # 인증 정보 반환
 
 def load_google_credentials():
-    """구글 서비스 계정 인증 로드 (Streamlit Cloud)"""
-    # 환경 변수에서 서비스 계정 JSON 문자열을 가져옵니다.
-    credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
-
-    if not credentials_json:
-        st.error("Google Credentials 경로가 설정되지 않았습니다.")
+    """구글 서비스 계정 인증 로드"""
+    try:
+        credentials = get_credentials_from_secret_manager()  # 구글 인증 정보 가져오기
+        st.write("Google Credentials Loaded Successfully")
+        return credentials
+    except Exception as e:
+        st.error(f"Error loading Google credentials: {e}")
         return None
-    
-    # JSON 문자열을 Python 딕셔너리로 변환
-    credentials_dict = json.loads(credentials_json)
-    
-    # 서비스 계정 인증을 가져옵니다.
-    credentials = service_account.Credentials.from_service_account_info(credentials_dict)
-    st.write("Google Credentials Loaded Successfully")
-    return credentials
 
 
-
-from google.cloud import storage
-import pandas as pd
-
-def save_to_gcs(dataframe, filename, bucket_name):
-    """구글 클라우드 저장소에 데이터프레임 저장"""
+def save_to_drive(dataframe, filename):
+    """구글 드라이브에 데이터프레임 저장"""
     filepath = f"/tmp/{filename}"
     dataframe.to_csv(filepath, index=False)
 
-    # Google Cloud Storage 클라이언트 초기화
-    storage_client = storage.Client()
-    bucket = storage_client.bucket(bucket_name)
-    
-    # 기존에 같은 이름의 파일이 있으면 삭제
-    blob = bucket.blob(filename)
-    if blob.exists():
-        blob.delete()
+    credentials = load_google_credentials()
+    if not credentials:
+        return
 
-    # 파일 업로드
-    blob.upload_from_filename(filepath)
-    print(f"파일 {filename}이(가) {bucket_name} 버킷에 업로드되었습니다.")
+    drive_service = build("drive", "v3", credentials=credentials)
+    file_id = find_file_in_drive(filename, drive_service)
+    if file_id:
+        drive_service.files().delete(fileId=file_id).execute()
 
-def find_file_in_gcs(filename, bucket_name):
-    """구글 클라우드 저장소에서 파일 검색"""
-    storage_client = storage.Client()
-    bucket = storage_client.bucket(bucket_name)
-    
-    # 파일이 존재하는지 확인
-    blob = bucket.blob(filename)
-    if blob.exists():
-        return blob.name  # 파일 경로 반환
-    return None
+    file_metadata = {"name": filename}
+    media = MediaFileUpload(filepath, mimetype="text/csv")
+    drive_service.files().create(body=file_metadata, media_body=media).execute()
+
+def find_file_in_drive(filename, drive_service):
+    """구글 드라이브에서 파일 검색"""
+    results = drive_service.files().list(q=f"name = '{filename}'", fields="files(id, name)").execute()
+    files = results.get("files", [])
+    return files[0]["id"] if files else None
 
 # common_utils.py
-def initialize_gcs_client():
+def initialize_drive_service():
     """
-    Google Cloud Storage 클라이언트 객체를 초기화하는 함수.
+    Google Drive API 서비스 객체를 초기화하는 함수.
 
     Returns:
-        storage_client: Google Cloud Storage 클라이언트 객체
+        drive_service: Google Drive API 서비스 객체
     """
-    storage_client = storage.Client()
-    return storage_client
+    credentials = load_google_credentials()
+    if credentials:
+        return build("drive", "v3", credentials=credentials)
+    else:
+        raise Exception("Google Drive 인증에 실패했습니다.")

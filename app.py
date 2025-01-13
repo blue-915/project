@@ -2,48 +2,40 @@ import streamlit as st
 import pandas as pd
 import random
 import time
-from google.cloud import storage
 
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'utils')))
 
 
-from utils.common_utils import ( initialize_session,
-                                    load_data,
-                                    handle_page_navigation,
-                                    get_credentials_from_secret_manager,
-                                    load_google_credentials,
-                                    save_to_gcs,
-                                    find_file_in_gcs,
-                                    initialize_gcs_client,
-)
+from utils.common_utils import (initialize_session,
+                                handle_page_navigation,
+                                get_credentials_from_secret_manager,
+                                load_google_credentials,
+                                save_to_drive,
+                                find_file_in_drive,
+                                initialize_drive_service,)
 
-from utils.learning_utils import (save_to_gcs, 
-                                  find_file_in_gcs, 
-                                  save_incorrect_answers_to_gcs, 
-                                  save_or_remove_marked_words, 
-                                  delete_from_gcs, 
-                                  toggle_mark_word, 
-                                  initialize_marked_words_state, 
-                                  add_word_to_marked_list, 
-                                  remove_word_from_marked_list, 
-                                  check_answer, 
-                                  move_to_next_word, 
-                                  update_word_and_options, 
-                                  get_sequential_word
+from utils.learn_utils import (get_sequential_word,
+                                    check_answer,
+                                    move_to_next_word,
+                                    update_word_and_options,
+                                    process_and_save_incorrect_answers,
+                                    save_incorrect_answers_to_drive,
+                                    toggle_mark_word,
     
 )
-from utils.review_utils import ( initialize_session, handle_page_navigation, 
-                                get_credentials_from_secret_manager, load_google_credentials, 
-                                load_incorrect_words_from_gcs, get_current_word, get_options, 
-                                check_answer_and_update, process_and_save_incorrect_answers, 
-                                verify_answer, 
-                                remove_correct_word_from_df, save_incorrect_df_to_gcs, 
-                                show_incorrect_message
+from utils.review_utils import ( load_incorrect_words_from_drive,
+                                 get_current_word,
+                                 get_options,
+                                 check_answer_and_update,
+                                 move_to_next_word_and_update,
+    
+    
 )
-from utils.checklist_utils import ( load_marked_words_from_gcs,
-                                    delete_marked_word_from_gcs,    
+from utils.checklist_utils import ( load_marked_words_from_drive,
+	                                delete_marked_word_from_drive,
+    
 )
 
 
@@ -77,43 +69,21 @@ data = load_data(file_url)
 def go_to_page(page_name):
     st.session_state.page = page_name
     
-
-import os
-import json
-from google.cloud import storage
 import streamlit as st
-
-def load_google_credentials(secret_name):
-    """구글 클라우드 저장소(GCS) 인증을 위한 함수 (Streamlit Cloud)"""
-    # 환경 변수에서 서비스 계정 JSON 문자열을 가져옵니다.
-    credentials_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
-
-    if not credentials_json:
-        st.error("Google Credentials 경로가 설정되지 않았습니다.")
-        return None
-    
-    # JSON 문자열을 Python 딕셔너리로 변환
-    credentials_dict = json.loads(credentials_json)
-    
-    # GCS 클라이언트 생성
-    credentials = storage.Client.from_service_account_info(credentials_dict)
-    st.write("Google Cloud Storage Credentials Loaded Successfully")
-    
-    return credentials
+from utils import load_google_credentials
 
 def main():
-    # 구글 클라우드 저장소 인증 정보 로드
-    storage_client = load_google_credentials("project")  # GCS 클라이언트를 직접 반환하도록 수정
+    # 구글 인증 정보 로드
+    credentials = load_google_credentials()
 
+    # 인증 정보 로드 성공하면 추가 작업 진행
+    if credentials:
+        st.write("Google Credentials Loaded Successfully")
+    else:
+        st.error("Failed to load Google credentials")
+
+    # 나머지 애플리케이션 코드...
     # Your remaining app code...
-    st.write("Google Cloud Storage Credentials Loaded Successfully")
-
-    # Example: List the available buckets
-    if storage_client:
-        # GCS 클라이언트를 사용하여 버킷 목록 가져오기
-        buckets = storage_client.list_buckets()
-        for bucket in buckets:
-            st.write(bucket.name)
 
 
 
@@ -171,8 +141,8 @@ def learn_page():
     if st.button("정답 확인", key="check_answer"):
         # 정답 확인
         check_answer(selected_option, st.session_state.correct_answer, filtered_data)
-        # 오답 처리 및 저장 함수 호출 (GCS에 오답 저장)
-        save_incorrect_answers_to_gcs(filtered_data, "your-bucket-name")  # GCS 버킷 이름 추가
+        # 오답 처리 및 저장 함수 호출
+        process_and_save_incorrect_answers(selected_option, st.session_state.correct_answer, current_word)
         # 다음 단어로 버튼 활성화
         st.session_state.show_next_button = True
          
@@ -186,7 +156,9 @@ def learn_page():
     # 단어 마크
     is_marked = current_word["Word"] in st.session_state.get("marked_words", [])
     if st.button("이 단어를 마크하기" if not is_marked else "마크 취소", key="mark_word"):
-        toggle_mark_word(current_word["Word"], current_word, "your-bucket-name")  # GCS 버킷 이름 추가
+        toggle_mark_word(current_word["Word"], current_word)
+
+
 
     # 학습 기록 업데이트
     st.write("### 학습 기록")
@@ -194,21 +166,19 @@ def learn_page():
 
     st.button("홈으로 이동", on_click=lambda: go_to_page("Home"))
 
-
 def review_page():
     st.title("오답 복습")
 
-    # Google Cloud Storage 서비스 객체 생성
+    # Google Drive 서비스 객체 생성
     try:
-        storage_client = initialize_gcs_client()  # 기존 호출 함수 사용
+        drive_service = initialize_drive_service()
     except Exception as e:
-        st.error(f"Google Cloud Storage 초기화 실패: {e}")
+        st.error(f"Google Drive 초기화 실패: {e}")
         return
 
     # incorrect_df 초기화
     if "incorrect_df" not in st.session_state:
-        # GCS에서 오답 데이터를 로드하는 기존 호출 함수 사용
-        st.session_state.incorrect_df = load_incorrect_words_from_gcs("your-bucket-name")  # GCS 버킷 이름 전달
+        st.session_state.incorrect_df = load_incorrect_words_from_drive()
         st.write("### Debug: incorrect_df 초기화 완료")
         st.write(st.session_state.incorrect_df)
 
@@ -258,8 +228,6 @@ def review_page():
             ]
             st.write("### Debug: 정답 확인 후 incorrect_df 상태")
             st.write(st.session_state.incorrect_df)
-            # GCS에 오답 데이터를 저장하는 기존 호출 함수 사용
-            save_incorrect_df_to_gcs(st.session_state.incorrect_df, "your-bucket-name")  # GCS 버킷 이름 전달
         else:
             st.error(f"오답입니다! 정답은: {st.session_state.correct_answer}")
 
@@ -295,8 +263,7 @@ def review_checklist_page():
 
     # 마크된 단어 불러오기
     if "marked_words_df" not in st.session_state:
-        # GCS에서 마크된 단어를 불러오는 함수 호출 (기존 호출 함수 활용)
-        st.session_state.marked_words_df = load_marked_words_from_gcs("your-bucket-name")  # GCS 버킷 이름 전달
+        st.session_state.marked_words_df = load_marked_words_from_drive()
     
     marked_df = st.session_state.marked_words_df
 
@@ -327,8 +294,7 @@ def review_checklist_page():
             st.write(f"{row['Word']} - {row['Meaning']}")
         with col3:
             if st.button("삭제", key=f"delete_{idx}"):
-                # GCS에서 단어 삭제하는 함수 호출 (기존 호출 함수 활용)
-                st.session_state.marked_words_df = delete_marked_word_from_gcs(row["Word"], marked_df, "your-bucket-name")
+                st.session_state.marked_words_df = delete_marked_word_from_drive(row["Word"], marked_df)
                 st.experimental_set_query_params()  # URL 매개변수 초기화로 페이지 갱신
 
     # 디버깅: 선택된 단어 상태
@@ -337,6 +303,8 @@ def review_checklist_page():
 
     # 홈 페이지로 이동 버튼
     st.button("홈 페이지로 이동", on_click=lambda: go_to_page("Home"))
+
+
 
 
 # 현재 페이지에 따라 다른 화면 표시
