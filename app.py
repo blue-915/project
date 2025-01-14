@@ -41,7 +41,7 @@ from utils.common_utils import (initialize_session,
                                 find_file_in_drive,
                                 initialize_drive_service,)
 
-from utils.learn_utils import (get_sequential_word,
+from utils.learning_utils import (get_sequential_word,
                                     check_answer,
                                     move_to_next_word,
                                     update_word_and_options,
@@ -63,7 +63,7 @@ from utils.checklist_utils import ( load_marked_words_from_drive,
     
 )
 
-from utils.Visual_utils import (show_progress_summary,
+from utils.visual_utils import (show_progress_summary,
 )
 
 # 디버깅: 현재 디렉토리와 utils 폴더의 파일들을 확인
