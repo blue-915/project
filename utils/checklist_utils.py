@@ -15,8 +15,7 @@ from utils.common_utils import (initialize_session,
                                 find_file_in_drive)
 
 
-def load_marked_words_from_drive():
-    """구글 드라이브에서 마크된 단어 데이터를 불러오기"""
+def load_marked_words_from_drive(): # 구글 드라이브에서 마크된 단어 데이터를 불러오기
     credentials = load_google_credentials()
     if not credentials:
         st.warning("구글 인증 실패: 자격 증명이 없습니다.")
@@ -38,13 +37,6 @@ def load_marked_words_from_drive():
         return pd.DataFrame()
     
 def delete_marked_word_from_drive(word, marked_df):
-    """
-    마크된 단어 데이터를 구글 드라이브에서 삭제.
-
-    Parameters:
-        word (str): 삭제할 단어.
-        marked_df (DataFrame): 현재 마크된 단어 데이터프레임.
-    """
     marked_df = marked_df[marked_df["Word"] != word]  # 데이터프레임에서 단어 제거
     save_to_drive(marked_df, "marked_words.csv")  # 수정된 데이터 저장
     return marked_df

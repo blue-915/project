@@ -102,8 +102,8 @@ def process_and_save_incorrect_answers(selected_option, correct_answer, current_
 
 from datetime import datetime
 
-def save_incorrect_answers_to_drive(filtered_data):
-    """오답 데이터를 구글 드라이브에 저장"""
+def save_incorrect_answers_to_drive(filtered_data): # 오답 데이터를 구글 드라이브에 저장
+    
     # 디버깅용 출력
     st.write("현재 filtered_data:")
     st.write(filtered_data)
@@ -136,13 +136,7 @@ def save_incorrect_answers_to_drive(filtered_data):
         st.success("단어가 구글드라이브에 저장되었습니다.")
 
 def toggle_mark_word(word, current_word):
-    """
-    단어를 마크하거나 마크 취소하고 구글 드라이브에 저장/삭제.
 
-    Parameters:
-        word (str): 마크할 단어.
-        current_word (dict): 현재 단어의 정보.
-    """
     # 세션 상태 초기화
     initialize_marked_words_state()
 
@@ -158,21 +152,13 @@ def toggle_mark_word(word, current_word):
     # 구글 드라이브에 저장/삭제
     save_or_remove_marked_words(st.session_state.marked_words_df)
 
-def initialize_marked_words_state():
-    """마크 상태 관리 변수 초기화"""
+def initialize_marked_words_state(): # 마크 상태 관리 변수 초기화
     if "marked_words" not in st.session_state:
         st.session_state.marked_words = []  # 마크된 단어 목록
     if "marked_words_df" not in st.session_state:
         st.session_state.marked_words_df = pd.DataFrame(columns=["Word", "Meaning", "Day", "Date"])  # 마크 데이터프레임
 
 def add_word_to_marked_list(word, current_word):
-    """
-    단어를 마크 목록에 추가.
-
-    Parameters:
-        word (str): 마크할 단어.
-        current_word (dict): 현재 단어의 정보.
-    """
     st.session_state.marked_words.append(word)  # 마크된 단어 추가
     new_entry = {
         "Word": current_word["Word"],
@@ -185,26 +171,15 @@ def add_word_to_marked_list(word, current_word):
     )
     st.write(f"단어 '{word}'가 마크되었습니다.")  # 디버깅 메시지
 
-def remove_word_from_marked_list(word):
-    """
-    단어를 마크 목록에서 제거.
-
-    Parameters:
-        word (str): 마크 취소할 단어.
-    """
+def remove_word_from_marked_list(word): # 단어를 마크 목록에서 제거.
+    
     st.session_state.marked_words.remove(word)  # 마크된 단어 제거
     st.session_state.marked_words_df = st.session_state.marked_words_df[
         st.session_state.marked_words_df["Word"] != word
     ]
     st.write(f"단어 '{word}'가 마크에서 제거되었습니다.")  # 디버깅 메시지
 
-def save_or_remove_marked_words(marked_words_df):
-    """
-    마크된 단어를 구글 드라이브에 저장하거나 삭제.
-
-    Parameters:
-        marked_words_df (DataFrame): 현재 마크된 단어 데이터프레임.
-    """
+def save_or_remove_marked_words(marked_words_df): # 마크된 단어를 구글 드라이브에 저장하거나 삭제.
     if marked_words_df.empty:
         # 마크된 단어가 없으면 파일 삭제
         if delete_from_drive("marked_words.csv"):

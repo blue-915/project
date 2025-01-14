@@ -14,8 +14,7 @@ from utils.common_utils import (initialize_session,
                                 save_to_drive,
                                 find_file_in_drive)
 
-def load_incorrect_words_from_drive():
-    """구글 드라이브에서 오답 데이터를 불러오기"""
+def load_incorrect_words_from_drive(): # 구글 드라이브에서 오답 데이터를 불러오기
     credentials = load_google_credentials()
     if not credentials:
         st.warning("구글 인증 실패: 자격 증명이 없습니다.")
@@ -35,36 +34,14 @@ def load_incorrect_words_from_drive():
         st.error(f"오답 데이터를 불러오는 중 오류 발생: {e}")
         return pd.DataFrame()
     
-def get_current_word(incorrect_df, current_index):
-    """
-    현재 단어와 정답 반환.
-
-    Parameters:
-        incorrect_df (DataFrame): 복습할 오답 단어가 포함된 데이터프레임.
-        current_index (int): 현재 복습할 단어의 인덱스.
-
-    Returns:
-        tuple: (current_word, correct_answer)
-            - current_word (Series): 현재 단어의 데이터.
-            - correct_answer (str): 현재 단어의 정답(뜻).
-    """
+def get_current_word(incorrect_df, current_index): # 현재 단어와 정답 반환.
     if incorrect_df.empty or current_index >= len(incorrect_df):
         return None, None
     current_word = incorrect_df.iloc[current_index]
     correct_answer = current_word["Meaning"]
     return current_word, correct_answer
 
-def get_options(filtered_data, correct_answer):
-    """
-    보기 선택지 생성.
-
-    Parameters:
-        filtered_data (DataFrame): 학습 페이지 데이터.
-        correct_answer (str): 현재 정답.
-
-    Returns:
-        list: 보기 선택지 (정답 포함).
-    """
+def get_options(filtered_data, correct_answer): # 보기 선택지 생성.
     if filtered_data.empty:
         return [correct_answer]  # 데이터가 없으면 정답만 반환
 
@@ -79,40 +56,14 @@ def get_options(filtered_data, correct_answer):
     random.shuffle(options)
     return options
 
-def check_answer_and_update(selected_option, correct_answer, current_word, incorrect_df, drive_service):
-    """
-    정답 확인 버튼 동작 및 데이터 갱신 함수.
-
-    Parameters:
-        selected_option (str): 사용자가 선택한 답안.
-        correct_answer (str): 현재 정답.
-        current_word (Series): 현재 단어 데이터.
-        incorrect_df (DataFrame): 오답 데이터프레임.
-        drive_service: Google Drive 서비스 객체.
-
-    Returns:
-        DataFrame: 갱신된 incorrect_df.
-    """
+def check_answer_and_update(selected_option, correct_answer, current_word, incorrect_df, drive_service): # 정답 확인 버튼 동작 및 데이터 갱신 함수.
     incorrect_df = process_and_save_incorrect_answers(
         selected_option, correct_answer, current_word, incorrect_df, drive_service
     )
     return incorrect_df
 
 
-def process_and_save_incorrect_answers(selected_option, correct_answer, current_word, incorrect_df, drive_service):
-    """
-    오답 단어를 처리하고 데이터프레임을 갱신하며, 구글 드라이브에 저장.
-
-    Parameters:
-        selected_option (str): 사용자가 선택한 답안.
-        correct_answer (str): 현재 문제의 정답.
-        current_word (Series): 현재 문제의 단어 데이터.
-        incorrect_df (DataFrame): 오답 데이터프레임.
-        drive_service: Google Drive 서비스 객체.
-
-    Returns:
-        DataFrame: 갱신된 incorrect_df.
-    """
+def process_and_save_incorrect_answers(selected_option, correct_answer, current_word, incorrect_df, drive_service): # 오답 단어를 처리하고 데이터프레임을 갱신하며, 구글 드라이브에 저장.
     is_correct = verify_answer(selected_option, correct_answer)
 
     if is_correct:
@@ -158,17 +109,8 @@ def show_incorrect_message(correct_answer):
 
 
 
-def move_to_next_word_and_update(incorrect_df, filtered_data):
-    """
-    현재 복습 단어의 인덱스를 갱신하고, 단어와 선택지를 업데이트하는 함수.
+def move_to_next_word_and_update(incorrect_df, filtered_data): # 현재 복습 단어의 인덱스를 갱신하고, 단어와 선택지를 업데이트하는 함수.
 
-    Parameters:
-        incorrect_df (DataFrame): 복습할 오답 단어 데이터프레임.
-        filtered_data (DataFrame): 전체 학습 데이터프레임.
-
-    Returns:
-        bool: 다음 단어가 있는 경우 True, 없는 경우 False.
-    """
     # 현재 인덱스 갱신
     if "current_index" in st.session_state:
         st.session_state.current_index += 1
@@ -180,7 +122,6 @@ def move_to_next_word_and_update(incorrect_df, filtered_data):
     # 디버깅 출력
     st.write(f"### Debug: 현재 인덱스 {current_index}, 데이터프레임 길이 {len(incorrect_df)}")
 
-    # 현재 인덱스가 데이터프레임 길이를 초과하면 복습 종료
     if current_index >= len(incorrect_df):
         st.error("더 이상 복습할 단어가 없습니다.")
         return False

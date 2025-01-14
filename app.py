@@ -28,38 +28,42 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'utils')
 
 
 
-# 절대 경로로 임포트
-from checklist_utils import (
-    load_marked_words_from_drive,
-    delete_marked_word_from_drive
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'utils')))
+
+
+from utils.common_utils import (initialize_session,
+                                handle_page_navigation,
+                                get_credentials_from_secret_manager,
+                                load_google_credentials,
+                                save_to_drive,
+                                find_file_in_drive,
+                                initialize_drive_service,)
+
+from utils.learn_utils import (get_sequential_word,
+                                    check_answer,
+                                    move_to_next_word,
+                                    update_word_and_options,
+                                    process_and_save_incorrect_answers,
+                                    save_incorrect_answers_to_drive,
+                                    toggle_mark_word,
+    
+)
+from utils.review_utils import ( load_incorrect_words_from_drive,
+                                 get_current_word,
+                                 get_options,
+                                 check_answer_and_update,
+                                 move_to_next_word_and_update,
+    
+    
+)
+from utils.checklist_utils import ( load_marked_words_from_drive,
+	                                delete_marked_word_from_drive,
+    
 )
 
-from common_utils import (
-    initialize_session,
-    handle_page_navigation,
-    get_credentials_from_secret_manager,
-    load_google_credentials,
-    save_to_drive,
-    find_file_in_drive,
-    initialize_drive_service,
-)
-
-from learning_utils import (
-    get_sequential_word,
-    check_answer,
-    move_to_next_word,
-    update_word_and_options,
-    process_and_save_incorrect_answers,
-    save_incorrect_answers_to_drive,
-    toggle_mark_word,
-)
-
-from review_utils import (
-    load_incorrect_words_from_drive,
-    get_current_word,
-    get_options,
-    check_answer_and_update,
-    move_to_next_word_and_update,
+from utils.Visual_utils import (show_progress_summary,
 )
 
 # 디버깅: 현재 디렉토리와 utils 폴더의 파일들을 확인
@@ -101,20 +105,16 @@ def go_to_page(page_name):
 import streamlit as st
 from utils import load_google_credentials
 
-def main():
-    # 구글 인증 정보 로드
-    credentials = load_google_credentials()
+def load_google_credentials(secret_name): # 구글 드라이브 API 인증
+    credentials_json = get_credentials_from_secret_manager()  
+    st.write("Google Credentials Loaded Successfully")
+    return credentials_json
 
-    # 인증 정보 로드 성공하면 추가 작업 진행
-    if credentials:
-        st.write("Google Credentials Loaded Successfully")
-    else:
-        st.error("Failed to load Google credentials")
+def main(): # 구글 인증 정보 로드
+    credentials_json = load_google_credentials("project")
 
-    # 나머지 애플리케이션 코드...
     # Your remaining app code...
-
-
+    st.write("Google Credentials Loaded Successfully")
 
 # 페이지별 내용
 # 홈 페이지
@@ -142,15 +142,16 @@ def home_page(data):
     st.button("학습모드", on_click=lambda: go_to_page("Learn"))
     st.button("복습모드", on_click=lambda: go_to_page("S_Learn"))
     st.button("체크리스트", on_click=lambda: go_to_page("Mark"))
+    st.button("진도율확인", on_click=lambda: go_to_page("Visual"))
 
 def learn_page():
-    st.title("학습하기")
+    st.title("학습모드")
     filtered_data = st.session_state.filtered_data
     if filtered_data.empty:
         st.error("필터링된 데이터가 없습니다.")
         return
 
-    # 현재 단어와 선택지 로드
+    # 현재 단어와 선택지 불러오기
     current_index = st.session_state.current_index
     current_word = filtered_data.iloc[current_index]
 
@@ -168,11 +169,8 @@ def learn_page():
 
     # 정답 확인 버튼
     if st.button("정답 확인", key="check_answer"):
-        # 정답 확인
         check_answer(selected_option, st.session_state.correct_answer, filtered_data)
-        # 오답 처리 및 저장 함수 호출
         process_and_save_incorrect_answers(selected_option, st.session_state.correct_answer, current_word)
-        # 다음 단어로 버튼 활성화
         st.session_state.show_next_button = True
          
     # '다음 단어로' 버튼
@@ -196,9 +194,9 @@ def learn_page():
     st.button("홈으로 이동", on_click=lambda: go_to_page("Home"))
 
 def review_page():
-    st.title("오답 복습")
+    st.title("복습모드")
 
-    # Google Drive 서비스 객체 생성
+    # Google Drive 서비스
     try:
         drive_service = initialize_drive_service()
     except Exception as e:
@@ -211,13 +209,13 @@ def review_page():
         st.write("### Debug: incorrect_df 초기화 완료")
         st.write(st.session_state.incorrect_df)
 
-    # 데이터가 비어 있는 경우 처리
+    # 데이터가 비어 있는 경우
     if st.session_state.incorrect_df.empty:
         st.write("현재 복습할 오답 단어가 없습니다.")
         st.button("홈으로 이동", on_click=lambda: go_to_page("Home"))
         return
 
-    # 필터링된 데이터 확인
+    # 필터링된 데이터
     if "filtered_data" not in st.session_state or st.session_state.filtered_data.empty:
         st.error("필터링된 데이터가 없습니다. 홈 화면으로 돌아가세요.")
         return
@@ -226,15 +224,15 @@ def review_page():
 
     # 세션 상태 초기화
     if "current_word_index" not in st.session_state:
-        st.session_state.current_word_index = 0  # 초기 인덱스 설정
+        st.session_state.current_word_index = 0  
     if "current_word" not in st.session_state:
-        st.session_state.current_word = None  # 현재 단어 초기화
+        st.session_state.current_word = None  
     if "correct_answer" not in st.session_state:
-        st.session_state.correct_answer = None  # 정답 초기화
+        st.session_state.correct_answer = None  
     if "options" not in st.session_state:
-        st.session_state.options = []  # 보기 선택지 초기화
+        st.session_state.options = []  
     if "show_next_button" not in st.session_state:
-        st.session_state.show_next_button = False  # 다음 단어 버튼 초기화
+        st.session_state.show_next_button = False  
 
     # 현재 복습 단어 가져오기
     if st.session_state.current_word is None:
@@ -278,11 +276,10 @@ def review_page():
         else:
             st.write("마지막 단어입니다.")
 
-    # 디버깅: 현재 저장된 오답 데이터프레임 출력
+    # 디버깅
     st.write("### Debug: 현재 저장된 오답 데이터프레임")
     st.write(st.session_state.incorrect_df)
 
-    # 홈 페이지로 이동 버튼
     st.button("홈 페이지로 이동", on_click=lambda: go_to_page("Home"))
 
 
@@ -324,14 +321,25 @@ def review_checklist_page():
         with col3:
             if st.button("삭제", key=f"delete_{idx}"):
                 st.session_state.marked_words_df = delete_marked_word_from_drive(row["Word"], marked_df)
-                st.experimental_set_query_params()  # URL 매개변수 초기화로 페이지 갱신
+                st.experimental_set_query_params() 
 
-    # 디버깅: 선택된 단어 상태
+    # 디버깅
     st.write("### Debug: 선택된 단어")
     st.write(checked_words)
 
     # 홈 페이지로 이동 버튼
     st.button("홈 페이지로 이동", on_click=lambda: go_to_page("Home"))
+    
+def visual_page():
+    st.title("진도별 상황")
+    
+    if "records" not in st.session_state:
+        st.session_state.records = []
+        
+    st.title("진도별 상황 대시보드")
+
+    # 진도별 상황 요약 및 시각화 함수
+    show_progress_summary()
 
 
 
@@ -345,3 +353,5 @@ elif st.session_state.page == "S_Learn":
     review_page()
 elif st.session_state.page == "Mark":
     review_checklist_page()
+elif st.session_state.page == "Visual": 
+    visual_page()
