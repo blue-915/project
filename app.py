@@ -6,31 +6,9 @@ import time
 import sys
 import os
 
-import os
-import sys
-
-# 현재 작업 디렉토리 출력
-print("Current working directory:", os.getcwd())
-
-# sys.path 확인: 경로가 제대로 추가되었는지
-print("Current sys.path:", sys.path)
-
-# utils 폴더 내 파일 확인
-utils_path = os.path.join(os.getcwd(), 'utils')
-if os.path.exists(utils_path):
-    print("Files in utils folder:", os.listdir(utils_path))
-else:
-    print(f"Error: 'utils' folder not found in {os.getcwd()}")
-
-
 # utils 디렉토리를 경로에 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'utils')))
 
-
-
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'utils')))
 
 
 from utils.common_utils import (initialize_session,
@@ -66,9 +44,6 @@ from utils.checklist_utils import ( load_marked_words_from_drive,
 from utils.visual_utils import (show_progress_summary,
 )
 
-# 디버깅: 현재 디렉토리와 utils 폴더의 파일들을 확인
-print("Current directory:", os.getcwd())
-print("Files in utils folder:", os.listdir(os.path.join(os.getcwd(), 'utils')))
 
 
 
@@ -101,9 +76,6 @@ data = load_data(file_url)
 # 페이지 이동 함수
 def go_to_page(page_name):
     st.session_state.page = page_name
-    
-import streamlit as st
-from utils import load_google_credentials
 
 def load_google_credentials(secret_name): # 구글 드라이브 API 인증
     credentials_json = get_credentials_from_secret_manager()  
@@ -335,11 +307,10 @@ def visual_page():
     
     if "records" not in st.session_state:
         st.session_state.records = []
-        
-    st.title("진도별 상황 대시보드")
+        st.title("진도별 상황 대시보드")
 
-    # 진도별 상황 요약 및 시각화 함수
-    show_progress_summary()
+        # 진도별 상황 요약 및 시각화 함수
+        show_progress_summary()
 
 
 

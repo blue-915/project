@@ -27,7 +27,8 @@ def load_data(file_url):
 
 def handle_page_navigation(page_name): # 페이지 이동 처리
     st.session_state.page = page_name
-    
+''' 
+# Stramlit Cloud Secrets을 이용한 경우   
 import os
 import streamlit as st
 from google.oauth2.service_account import Credentials
@@ -49,7 +50,7 @@ def load_google_credentials(): # 구글 서비스 계정 인증 로드
         return None
 '''   
 # 경로를 직접 설정한 경우
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/Users/doyeon/Downloads/service_account.json"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = '/mnt/c/Users/User/Downloads/study/service_account.json'
 
 def get_credentials_from_secret_manager(): # 구글 서비스 계정 인증을 위한 함수
     credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
@@ -66,7 +67,7 @@ def load_google_credentials(): # 구글 서비스 계정 인증 로드
     credentials = Credentials.from_service_account_file(credentials_path)
     st.write("Google Credentials Loaded Successfully")
     return credentials
-'''
+
 
 def save_to_drive(dataframe, filename): # 구글 드라이브에 데이터프레임 저장
     filepath = f"/tmp/{filename}"
