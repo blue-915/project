@@ -25,6 +25,7 @@ from utils.learning_utils import (get_sequential_word,
                                     update_word_and_options,
                                     process_and_save_incorrect_answers,
                                     save_incorrect_answers_to_drive,
+                                    delete_from_drive,
                                     toggle_mark_word,
     
 )

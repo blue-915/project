@@ -14,6 +14,25 @@ from utils.common_utils import (initialize_session,
                                 save_to_drive,
                                 find_file_in_drive)
 
+def delete_from_drive(file_name): # Google Drive에서 지정된 파일을 삭제하는 함수.
+   
+   # Google Drive API 서비스 객체 생성
+    credentials = load_google_credentials() 
+    service = build("drive", "v3", credentials=credentials)
+
+    # Google Drive에서 파일 검색
+    file_id = find_file_in_drive(file_name, service)
+    if file_id:
+        try:
+            service.files().delete(fileId=file_id).execute()
+            return True
+        except Exception as e:
+            st.error(f"파일 삭제 중 오류 발생: {e}")
+            return False
+    else:
+        st.warning(f"'{file_name}' 파일을 찾을 수 없습니다.")
+        return False
+
 
 def get_sequential_word(filtered_data): # 순차적으로 단어와 정답을 반환하는 함수"""
     current_index = st.session_state.current_index
@@ -124,20 +143,7 @@ def save_incorrect_answers_to_drive(filtered_data): # 오답 데이터를 구글
     if save_to_drive(incorrect_df, "incorrect_words.csv"):
         st.success("단어가 구글드라이브에 저장되었습니다.")
 
-def toggle_mark_word(word, current_word):
-    initialize_marked_words_state()
 
-    if word in st.session_state.marked_words:
-        remove_word_from_marked_list(word)
-    else:
-        add_word_to_marked_list(word, current_word)
-
-    # 디버깅 출력
-    # st.write("### 현재 마크된 단어 데이터프레임:")
-    # st.write(st.session_state.marked_words_df)
-
-    # 구글 드라이브에 저장/삭제
-    save_or_remove_marked_words(st.session_state.marked_words_df)
 
 def initialize_marked_words_state(): 
     if "marked_words" not in st.session_state:
@@ -165,6 +171,22 @@ def remove_word_from_marked_list(word): # 단어를 마크 목록에서 제거.
         st.session_state.marked_words_df["Word"] != word
     ]
     st.write(f"단어 '{word}'가 마크에서 제거되었습니다.")  # 디버깅 메시지
+
+def toggle_mark_word(word, current_word):
+    initialize_marked_words_state()
+
+    if word in st.session_state.marked_words:
+        remove_word_from_marked_list(word)
+    else:
+        add_word_to_marked_list(word, current_word)
+
+    # 디버깅 출력
+    # st.write("### 현재 마크된 단어 데이터프레임:")
+    # st.write(st.session_state.marked_words_df)
+
+    # 구글 드라이브에 저장/삭제
+    save_or_remove_marked_words(st.session_state.marked_words_df)
+
 
 def save_or_remove_marked_words(marked_words_df): # 마크된 단어를 구글 드라이브에 저장하거나 삭제.
     if marked_words_df.empty:
