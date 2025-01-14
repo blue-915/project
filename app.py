@@ -79,14 +79,14 @@ def go_to_page(page_name):
 
 def load_google_credentials(secret_name): # 구글 드라이브 API 인증
     credentials_json = get_credentials_from_secret_manager()  
-    st.write("Google Credentials Loaded Successfully")
+    # st.write("Google Credentials Loaded Successfully")
     return credentials_json
 
 def main(): # 구글 인증 정보 로드
     credentials_json = load_google_credentials("project")
 
     # Your remaining app code...
-    st.write("Google Credentials Loaded Successfully")
+    # st.write("Google Credentials Loaded Successfully")
 
 # 페이지별 내용
 # 홈 페이지
@@ -160,8 +160,8 @@ def learn_page():
 
 
     # 학습 기록 업데이트
-    st.write("### 학습 기록")
-    st.write(st.session_state.records)
+    # st.write("### 학습 기록")
+    # st.write(st.session_state.records)
 
     st.button("홈으로 이동", on_click=lambda: go_to_page("Home"))
 
@@ -178,8 +178,8 @@ def review_page():
     # incorrect_df 초기화
     if "incorrect_df" not in st.session_state:
         st.session_state.incorrect_df = load_incorrect_words_from_drive()
-        st.write("### Debug: incorrect_df 초기화 완료")
-        st.write(st.session_state.incorrect_df)
+        # st.write("### Debug: incorrect_df 초기화 완료")
+        # st.write(st.session_state.incorrect_df)
 
     # 데이터가 비어 있는 경우
     if st.session_state.incorrect_df.empty:
@@ -225,8 +225,8 @@ def review_page():
             st.session_state.incorrect_df = st.session_state.incorrect_df[
                 st.session_state.incorrect_df["Word"] != st.session_state.current_word["Word"]
             ]
-            st.write("### Debug: 정답 확인 후 incorrect_df 상태")
-            st.write(st.session_state.incorrect_df)
+            # st.write("### Debug: 정답 확인 후 incorrect_df 상태")
+            # st.write(st.session_state.incorrect_df)
         else:
             st.error(f"오답입니다! 정답은: {st.session_state.correct_answer}")
 
@@ -242,22 +242,22 @@ def review_page():
                 st.session_state.incorrect_df, st.session_state.current_word_index
             )
             st.session_state.options = get_options(filtered_data, st.session_state.correct_answer)
-            st.write("### Debug: 다음 단어로 버튼 클릭 후 상태")
-            st.write({"current_word": st.session_state.current_word, "correct_answer": st.session_state.correct_answer})
-            st.write(st.session_state.options)
+            # st.write("### Debug: 다음 단어로 버튼 클릭 후 상태")
+            # st.write({"current_word": st.session_state.current_word, "correct_answer": st.session_state.correct_answer})
+            # st.write(st.session_state.options)
         else:
             st.write("마지막 단어입니다.")
 
     # 디버깅
-    st.write("### Debug: 현재 저장된 오답 데이터프레임")
-    st.write(st.session_state.incorrect_df)
+    # st.write("### Debug: 현재 저장된 오답 데이터프레임")
+    # st.write(st.session_state.incorrect_df)
 
     st.button("홈 페이지로 이동", on_click=lambda: go_to_page("Home"))
 
 
         
 def review_checklist_page():
-    st.title("복습용 체크리스트")
+    st.title("체크리스트")
 
     # 마크된 단어 불러오기
     if "marked_words_df" not in st.session_state:
@@ -267,6 +267,7 @@ def review_checklist_page():
 
     if marked_df.empty:
         st.write("마크된 단어가 없습니다.")
+        st.button("홈 페이지로 이동", on_click=lambda: go_to_page("Home"))
         return
 
     # Day 선택
@@ -296,8 +297,8 @@ def review_checklist_page():
                 st.experimental_set_query_params() 
 
     # 디버깅
-    st.write("### Debug: 선택된 단어")
-    st.write(checked_words)
+    # st.write("### Debug: 선택된 단어")
+    # st.write(checked_words)
 
     # 홈 페이지로 이동 버튼
     st.button("홈 페이지로 이동", on_click=lambda: go_to_page("Home"))
@@ -307,10 +308,10 @@ def visual_page():
     
     if "records" not in st.session_state:
         st.session_state.records = []
-        st.title("진도별 상황 대시보드")
+    st.title("진도별 상황 대시보드")
 
-        # 진도별 상황 요약 및 시각화 함수
-        show_progress_summary()
+    # 진도별 상황 요약 및 시각화 함수
+    show_progress_summary()
 
 
 

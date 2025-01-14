@@ -48,11 +48,11 @@ def get_options(filtered_data, correct_answer): # 보기 선택지 생성.
     # 학습 페이지의 데이터프레임에서 무작위로 3개의 선택지 추출
     options = filtered_data["Meaning"].dropna().sample(3, replace=False).tolist()
 
-    # 정답 추가 (중복 방지)
+    # 정답 추가
     if correct_answer not in options:
         options.append(correct_answer)
 
-    # 선택지 셔플링
+    # 선택지 셔플
     random.shuffle(options)
     return options
 
@@ -67,11 +67,11 @@ def process_and_save_incorrect_answers(selected_option, correct_answer, current_
     is_correct = verify_answer(selected_option, correct_answer)
 
     if is_correct:
-        # 정답인 경우: 데이터프레임 갱신 및 저장
+        # 정답인 경우
         incorrect_df = remove_correct_word_from_df(current_word, incorrect_df)
         save_incorrect_df_to_drive(incorrect_df, drive_service)
     else:
-        # 오답인 경우: 메시지 출력
+        # 오답인 경우
         show_incorrect_message(correct_answer)
 
     return incorrect_df
@@ -86,8 +86,8 @@ def verify_answer(selected_option, correct_answer):
     
 def remove_correct_word_from_df(current_word, incorrect_df):
     updated_df = incorrect_df[incorrect_df["Word"] != current_word["Word"]]
-    st.write("### Debug: 삭제 후 남은 오답 데이터프레임")
-    st.write(updated_df)
+    # st.write("### Debug: 삭제 후 남은 오답 데이터프레임")
+    # st.write(updated_df)
     return updated_df
 
 def save_incorrect_df_to_drive(incorrect_df, drive_service):
@@ -120,7 +120,7 @@ def move_to_next_word_and_update(incorrect_df, filtered_data): # 현재 복습 �
     current_index = st.session_state.current_index
 
     # 디버깅 출력
-    st.write(f"### Debug: 현재 인덱스 {current_index}, 데이터프레임 길이 {len(incorrect_df)}")
+    # st.write(f"### Debug: 현재 인덱스 {current_index}, 데이터프레임 길이 {len(incorrect_df)}")
 
     if current_index >= len(incorrect_df):
         st.error("더 이상 복습할 단어가 없습니다.")
@@ -132,7 +132,7 @@ def move_to_next_word_and_update(incorrect_df, filtered_data): # 현재 복습 �
         st.session_state.current_word = current_word["Word"]
 
         # 디버깅 출력
-        st.write(f"### Debug: 현재 단어 {st.session_state.current_word}")
+        # st.write(f"### Debug: 현재 단어 {st.session_state.current_word}")
 
         # 선택지 갱신
         st.session_state.options = get_options(filtered_data, current_word["Meaning"])
