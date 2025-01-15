@@ -69,6 +69,37 @@ Google Drive API 연동을 위해 서비스 계정 키 파일 경로를 설정�
 ```bash
 export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service_account.json"
 ```
+
+---
+
+## 🛠️ 설계 및 구현
+
+### 1. UI/UX 설계
+- **페이지 흐름**:  
+  홈 화면 → 학습 모드 → 복습 모드 → 체크리스트 → 진도율 확인  
+- **단순하고 직관적인 UI**:  
+  Streamlit의 기본 레이아웃을 활용하여 간단하고 직관적인 UI를 설계.
+
+### 2. 데이터 처리 및 로직 설계
+- **Excel 파일 연동**:  
+  - GitHub에 업로드된 Excel 파일 URL을 통해 데이터 불러오기.  
+  - `pandas` 라이브러리를 사용하여 데이터 전처리 및 Day 필터링 로직 구현.  
+
+- **오답 및 체크리스트 관리**:  
+  - 학습 중 틀린 단어와 마크된 단어를 별도의 데이터프레임으로 관리.  
+  - 버튼 클릭 이벤트를 통해 데이터 업데이트 및 저장 기능 구현.
+
+### 3. Google Drive API 연동
+- **OAuth 인증 처리**:  
+  - 로컬 환경에서는 JSON 키 파일을 사용하여 Google Drive와 연동.  
+  - 배포 환경에서는 `.toml` 파일 기반으로 보안 문제를 해결.  
+
+- **데이터 저장**:  
+  - 틀린 단어와 마크된 단어 데이터를 CSV 형식으로 변환하여 Google Drive에 저장.
+
+### 4. Streamlit Cloud 배포
+- **Streamlit Cloud**를 활용하여 프로그램을 배포하고, 사용자가 웹 브라우저에서 쉽게 접근할 수 있도록 설정.
+
 ---
 ## 📂 디렉토리 구조
 ```plane text
@@ -90,3 +121,4 @@ project/
 - 웹 프레임워크: Streamlit
 - 데이터 관리: Pandas, Google Drive API
 - 배포 플랫폼: Streamlit Cloud
+
