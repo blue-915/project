@@ -77,8 +77,6 @@ export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service_account.json"
 ### 1. UI/UX 설계
 - **페이지 흐름**:  
   홈 화면 → 학습 모드 → 복습 모드 → 체크리스트 → 진도율 확인  
-- **단순하고 직관적인 UI**:  
-  Streamlit의 기본 레이아웃을 활용하여 간단하고 직관적인 UI를 설계.
 
 ### 2. 데이터 처리 및 로직 설계
 - **Excel 파일 연동**:  
@@ -87,7 +85,6 @@ export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service_account.json"
 
 - **오답 및 체크리스트 관리**:  
   - 학습 중 틀린 단어와 마크된 단어를 별도의 데이터프레임으로 관리.  
-  - 버튼 클릭 이벤트를 통해 데이터 업데이트 및 저장 기능 구현.
 
 ### 3. Google Drive API 연동
 - **OAuth 인증 처리**:  
